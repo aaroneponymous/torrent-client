@@ -22,13 +22,14 @@ auto decode_dict_value(const std::string &encoded_value, size_t &pos) -> json
 
     json dict = json::object();
 
-
     while (encoded_value[pos] != 'e')
     {
+        auto key = decode_bencoded_value(encoded_value, pos);
+        auto val = decode_bencoded_value(encoded_value, pos);
 
-        auto [key, val] = std::pair{decode_bencoded_value(encoded_value, pos), decode_bencoded_value(encoded_value, pos)};
+        // Unnecessary creation of temporary pair - remove
+        // auto [key, val] = std::pair{decode_bencoded_value(encoded_value, pos), decode_bencoded_value(encoded_value, pos)};
         dict[key] = val;
-
     }
 
     pos++;
