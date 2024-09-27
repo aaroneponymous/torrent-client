@@ -20,34 +20,21 @@ auto decode_dict_value(const std::string &encoded_value, size_t &pos) -> json
 
     pos++; // Move position to one char after 'd'
 
-    json::object_t object_map;  // object_map -> std::map<string_t str_key ...>
-    json::string_t str;
+    json dict = json::object();
 
-    if (isdigit(encoded_value[pos]))
+
+    while (encoded_value[pos] != 'e')
     {
-        while (encoded_value[pos] != 'e')
-        {
-            if (isdigit(encoded_value[pos]))
-            {
-                str = decode_str_value(encoded_value, pos);
-            }
 
-            // std::cout << "Dictionary: Key: " << str << "\n";
-            json object = decode_bencoded_value(encoded_value, pos);
-            // std::cout << "Dictionary Object: " << object.dump() << "\n";
-            object_map[str] = object;
-        }
+        auto [key, val] = std::pair{decode_bencoded_value(encoded_value, pos), decode_bencoded_value(encoded_value, pos)};
+        dict[key] = val;
 
-        pos++;
-
-        return object_map;
     }
-    else
-    {
-        throw std::runtime_error("Invalid encoded value: " + encoded_value);
-    }
+
+    pos++;
+
+    return json(dict);
 }
-
 auto decode_dictionary_value(const std::string &encoded_value, size_t &pos) -> json;
 
 auto decode_list_value(const std::string &encoded_value, size_t &pos) -> json
