@@ -12,6 +12,43 @@ using json = nlohmann::json;
 // Forward Declaration
 
 auto decode_bencoded_value(const std::string &encoded_value, size_t &pos) -> json;
+auto decode_str_value(const std::string &encoded_value, size_t &pos) -> json;
+
+auto decode_dict_value(const std::string &encoded_value, size_t &pos) -> json
+{
+    // encoded_value starts with pos at: "d ... "
+
+    pos++; // Move position to one char after 'd'
+
+    json::object_t object_map;  // object_map -> std::map<string_t str_key ...>
+    json::string_t str;
+
+    if (isdigit(encoded_value[pos]))
+    {
+        while (encoded_value[pos] != 'e')
+        {
+            if (isdigit(encoded_value[pos]))
+            {
+                str = decode_str_value(encoded_value, pos);
+            }
+
+            // std::cout << "Dictionary: Key: " << str << "\n";
+            json object = decode_bencoded_value(encoded_value, pos);
+            // std::cout << "Dictionary Object: " << object.dump() << "\n";
+            object_map[str] = object;
+        }
+
+        pos++;
+
+        return object_map;
+    }
+    else
+    {
+        throw std::runtime_error("Invalid encoded value: " + encoded_value);
+    }
+}
+
+auto decode_dictionary_value(const std::string &encoded_value, size_t &pos) -> json;
 
 auto decode_list_value(const std::string &encoded_value, size_t &pos) -> json
 {
@@ -21,13 +58,12 @@ auto decode_list_value(const std::string &encoded_value, size_t &pos) -> json
 
     while (encoded_value[pos] != 'e')
     {
-        std::cout << "List Substring " << encoded_value.substr(pos) + "\n";
-
+        // std::cout << "List Substring " << encoded_value.substr(pos) + "\n";
         list.push_back(decode_bencoded_value(encoded_value, pos));
     }
 
-
     pos++;
+
     return list;
 }
 
@@ -41,7 +77,7 @@ auto decode_int_value(const std::string &encoded_value, size_t &pos) -> json
         // Check for disallowed values
         std::string number_str = encoded_value.substr(pos + 1, e_index - 1);
         int64_t number = std::atoll(number_str.c_str());
-        
+
         // Account for valid integer str conversions
         // Invalid: i-0e or trailing zeroes i002e
 
@@ -52,7 +88,6 @@ auto decode_int_value(const std::string &encoded_value, size_t &pos) -> json
         {
             throw std::runtime_error("Invalid encoded value: " + encoded_value);
         }
-
 
         pos = e_index + 1;
         return json(number);
@@ -81,13 +116,12 @@ auto decode_str_value(const std::string &encoded_value, size_t &pos) -> json
     if (colon_index != std::string::npos)
     {
         std::string number_string = encoded_value.substr(pos, colon_index - pos);
-        std::cout << "number of string " << number_string + "\n";
+        // std::cout << "number of string " << number_string + "\n";
         int64_t number = std::atoll(number_string.c_str());
         std::string str = encoded_value.substr(colon_index + 1, number);
-        std::cout << "str word " << str + "\n";
+        // std::cout << "str word " << str + "\n";
 
         pos = colon_index + number + 1;
-
 
         return json(str);
     }
@@ -96,7 +130,6 @@ auto decode_str_value(const std::string &encoded_value, size_t &pos) -> json
         throw std::runtime_error("Invalid encoded value: " + encoded_value);
     }
 }
-
 
 json decode_bencoded_value(const std::string &encoded_value, size_t &pos)
 {
@@ -113,6 +146,10 @@ json decode_bencoded_value(const std::string &encoded_value, size_t &pos)
     else if (encoded_value[pos] == 'l') // Case: Char at [pos] is 'l' (list)
     {
         return decode_list_value(encoded_value, pos);
+    }
+    else if (encoded_value[pos] == 'd')
+    {
+        return decode_dict_value(encoded_value, pos);
     }
     else
     {
