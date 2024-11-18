@@ -1,5 +1,3 @@
-
-
 #include "../include/bittorrent/bencode.hpp"
 
 namespace Bencode
