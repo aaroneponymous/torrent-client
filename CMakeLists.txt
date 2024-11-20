@@ -14,5 +14,4 @@ target_compile_options(bittorrent PRIVATE
     -pedantic 
     -Wno-unknown-pragmas 
     -Wno-unused-parameter 
-    -O1
 )

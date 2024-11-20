@@ -177,7 +177,7 @@ namespace Bencode
 
     auto encodeBencode(const nlohmann::json &json_obj, std::string &encoded_output) -> void
     {
-        // Dictionary to Int
+       
         if (json_obj.is_object())
         {
             Bencode::encodeDict(json_obj, encoded_output);
@@ -394,10 +394,21 @@ namespace Bencode
         nlohmann::json test_table = torrent_table;
         auto torrent_info = torrent_table.find("info");
 
-        std::cout << "\nEncoding Functions Test:\n";
-        std::string encoding_string;
-        Bencode::encodeBencode(torrent_table, encoding_string);
-        std::cout << "Bencoded String: " << encoding_string << std::endl;
+        nlohmann::json info_dict = nlohmann::json::object();
+        info_dict["info"] = *torrent_info;
+
+
+        
+        
+
+        // std::cout << "\nEncoding Functions Test:\n";
+        // std::string encoding_string;
+        // Bencode::encodeBencode(torrent_table, encoding_string);
+        // std::cout << "Bencoded String: " << encoding_string << std::endl;
+
+        std::string info_bencoded_str;
+        Bencode::encodeBencode(info_dict, info_bencoded_str);
+        std::cout << "Info Bencoded: " << info_bencoded_str << std::endl;
 
         // Retrieve Values for Keys:
         auto tracker_it = torrent_table.find("announce"); // Tracker Link
