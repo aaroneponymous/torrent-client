@@ -15,6 +15,7 @@
 #include <fstream>
 #include <assert.h>
 #include "../json.hpp"
+#include "../sha1.hpp"
 
 namespace Bencode
 {
@@ -37,20 +38,19 @@ namespace Bencode
 
     auto bytesToHex(const std::string &bytes_string) -> std::string;
 
+    auto hexToBytes(const std::string &hex_string) -> std::string;
 
     // Set of Bencoding Functions
-
 
     auto encodeBencode(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
 
     auto encodeStr(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
-    
+
     auto encodeInt(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
 
     auto encodeList(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
 
     auto encodeDict(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
-
 
     // Torrent Parsers
 

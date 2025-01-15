@@ -1,13 +1,14 @@
 #include "../include/bittorrent/bencode.hpp"
 
+
+
+// TODO: New Branch to Clean & Optimize
 namespace Bencode
 {
     // Set of Decoding Functions
 
     auto decodeBencode(const std::string &encoded_string, size_t &pos) -> nlohmann::json
     {
-
-        // std::cout << "decode_bencoded_value: " + encoded_string.substr(pos) << std::endl;
 
         if (std::isdigit(encoded_string[pos])) // Case: Char at [pos] is digit (string)
         {
@@ -66,7 +67,7 @@ namespace Bencode
     {
 
         /**
-         * @todo : Account for edge cases and exceptions
+         * // TODO: Account for edge cases and exceptions
          *
          * Example :    "50i24e2:Hi"
          * Now Returns:  json: Hi - but an invalid bencoding
@@ -127,6 +128,7 @@ namespace Bencode
 
             auto key = decodeBencode(encoded_string, pos);
             nlohmann::json val = (key == "pieces") ? Bencode::piecestoHashStr(encoded_string, pos) : Bencode::decodeBencode(encoded_string, pos);
+            // auto val = decodeBencode(encoded_string, pos);
             dict[key] = val;
         }
 
@@ -155,7 +157,7 @@ namespace Bencode
     Example: i-3e represents the integer "-3"
     i-0e is invalid. All encodings with a leading zero, such as i03e, are invalid, other than i0e, which of course corresponds to the integer "0".
 
-    NOTE: The maximum number of bit of this integer is unspecified, but to handle it as a signed 64bit integer is mandatory to handle "large files" aka .torrent for more that 4Gbyte.
+    ATTENTION: The maximum number of bit of this integer is unspecified, but to handle it as a signed 64bit integer is mandatory to handle "large files" aka .torrent for more that 4Gbyte.
     Lists
     Lists are encoded as follows: l<bencoded values>e
     The initial l and trailing e are beginning and ending delimiters. Lists may contain any bencoded type, including integers, strings, dictionaries, and even lists within other lists.
@@ -177,52 +179,49 @@ namespace Bencode
 
     auto encodeBencode(const nlohmann::json &json_obj, std::string &encoded_output) -> void
     {
-       
+
         if (json_obj.is_object())
         {
-            Bencode::encodeDict(json_obj, encoded_output);
+            encodeDict(json_obj, encoded_output);
         }
         else if (json_obj.is_array())
         {
-
-            Bencode::encodeList(json_obj, encoded_output);
+            encodeList(json_obj, encoded_output);
         }
         else if (json_obj.is_string())
         {
-
-            Bencode::encodeStr(json_obj, encoded_output);
+            encodeStr(json_obj, encoded_output);
         }
         else if (json_obj.is_number())
         {
-
-            Bencode::encodeInt(json_obj, encoded_output);
+            encodeInt(json_obj, encoded_output);
         }
         else
         {
             throw std::runtime_error("json_obj passed is not of the type: object_j, array_j, string_j or number_j");
         }
-
     }
 
-    auto encodeStr(const nlohmann::json &json_obj, std::string &encoded_output) -> void 
+    auto encodeStr(const nlohmann::json &json_obj, std::string &encoded_output) -> void
     {
         // Assuming json_obj is of the right type i.e. string_t
 
         // nolhmann::json using UTF-8 Encoding and std::string::size() / length()
         // returns number of bytes rather than characters in the string
-        // Store in a Local String ? Or Divide size of string_json / 8 Bytes 
+        // Store in a Local String ? Or Divide size of string_json / 8 Bytes
 
         // json_obj.dump() -> Results in a string within a "double quotation"
 
         std::string local_string(json_obj.dump());
         local_string = local_string.substr(1, local_string.length() - 2);
-        
+
         uint64_t str_len = local_string.length();
         encoded_output += std::to_string(str_len);
+        encoded_output += ":";
         encoded_output += local_string;
     }
 
-    auto encodeInt(const nlohmann::json &json_obj, std::string &encoded_output) -> void 
+    auto encodeInt(const nlohmann::json &json_obj, std::string &encoded_output) -> void
     {
         std::string string_number = json_obj.dump();
         encoded_output += "i" + string_number + "e";
@@ -242,15 +241,25 @@ namespace Bencode
 
     // nlohmann::json object_t (based on map or unordered_map
     // Enforces Lexographical Ordering of Keys (Avoid Resorting)
-    
+
     auto encodeDict(const nlohmann::json &json_obj, std::string &encoded_output) -> void
     {
         encoded_output += "d";
-
         for (auto it = json_obj.begin(); it != json_obj.end(); it++)
         {
-            Bencode::encodeBencode(it.key(), encoded_output);       // Encode Key       // Break Chain & call string right away? Since key is always string?
-            Bencode::encodeBencode(it.value(), encoded_output);     // Encode Value
+            if (it.key() != "pieces")
+            {
+                encodeBencode(it.key(), encoded_output);   // Encode Key       // RECHECK: (Optimization) Break Chain & call string right away? Since key is always string?
+                encodeBencode(it.value(), encoded_output); // Encode Value
+            }
+            else
+            {
+                encodeBencode(it.key(), encoded_output);   // Encode Key       // RECHECK: (Optimization) Break Chain & call string right away? Since key is always string?
+                std::string byte_string = hexToBytes(it.value()); 
+                encoded_output += std::to_string(byte_string.length()); 
+                encoded_output += ":";
+                encoded_output += hexToBytes(it.value());
+            }
         }
 
         encoded_output += "e";
@@ -291,6 +300,10 @@ namespace Bencode
 
             std::string pieces_output;
 
+            // HACK: BytesToHex the entire piece str                                        (1)
+
+            pieces_output = Bencode::bytesToHex(piece_str);
+
             // while (piece_count > 0)
             // {
             //     std::string piece_string = encoded_value.substr(0, 20);
@@ -298,6 +311,9 @@ namespace Bencode
             //     piece_count--;
             // }
 
+            // HACK: Uncomment Upon Removal of                                              (1)
+
+            /*
             for (size_t i = 0; i < piece_count; ++i)
             {
                 std::string piece_hash_binary = piece_str.substr(i * 20, 20);
@@ -305,6 +321,7 @@ namespace Bencode
                 pieces_output += piece_hash_hex;
                 std::cout << "Piece " << i + 1 << " SHA-1: " << piece_hash_hex << std::endl;
             }
+            */
 
             // // Test on info_sample - Size of String equals (No of Pieces * 20) - will be 60 in pieces60:
             // if (number == 60)
@@ -330,7 +347,7 @@ namespace Bencode
     auto bytesToHex(const std::string &bytes_string) -> std::string
     {
 
-        const char hex_digits[] = "0123456789abcdef";
+        const unsigned char hex_digits[] = "0123456789abcdef";
         std::string output;
 
         output.reserve(bytes_string.length() * 2); // Each byte gets represented by 2 Hex
@@ -344,10 +361,43 @@ namespace Bencode
         return output;
     }
 
+    // LEARN: Simpler Implementation of Hexadecimal to Byte String
+
+    auto hexToBytes(const std::string &hex_string) -> std::string
+    {
+        // Check Even Length
+        if (hex_string.length() % 2 != 0)
+        {
+            throw std::invalid_argument("Hex String must have an even length");
+        }
+
+        std::string output;
+        output.reserve(hex_string.length() / 2);
+
+        for (auto i = 0; i < hex_string.length(); i += 2)
+        {
+            char high_nibble = hex_string[i];
+            char low_nibble = hex_string[i + 1];
+
+            // Check chars valid hexadecimal digits
+            if (!std::isxdigit(high_nibble) || !std::isxdigit(low_nibble))
+            {
+                std::cout << "High Nibble Char: " << high_nibble << " Low Nibble Char: " << low_nibble << std::endl;
+                throw std::invalid_argument("Hex String contains invalid characters.");
+            }
+
+            unsigned char byte = (std::stoi(std::string(1, high_nibble), nullptr, 16) << 4) |
+                                 std::stoi(std::string(1, low_nibble), nullptr, 16);
+
+            output.push_back(static_cast<char>(byte));
+        }
+
+        return output;
+    }
+
     // Torrent Parsers
     auto parseTorrent(const std::string &path, size_t &pos) -> nlohmann::json
     {
-
         std::streampos size;
         char *buffer;
 
@@ -356,7 +406,6 @@ namespace Bencode
 
         if (file.is_open())
         {
-
             size = file.tellg();
             int buff_size = file.tellg();
             buffer = new char[size];
@@ -373,7 +422,6 @@ namespace Bencode
             }
             catch (...)
             {
-
                 std::cout << "Exception in parse_torrent(): " << std::endl;
             }
 
@@ -397,18 +445,24 @@ namespace Bencode
         nlohmann::json info_dict = nlohmann::json::object();
         info_dict["info"] = *torrent_info;
 
-
-        
-        
-
         // std::cout << "\nEncoding Functions Test:\n";
         // std::string encoding_string;
         // Bencode::encodeBencode(torrent_table, encoding_string);
         // std::cout << "Bencoded String: " << encoding_string << std::endl;
 
         std::string info_bencoded_str;
-        Bencode::encodeBencode(info_dict, info_bencoded_str);
+        // nlohmann::json info_str("info");
+        // Bencode::encodeBencode(info_str, info_bencoded_str);
+        Bencode::encodeBencode(*torrent_info, info_bencoded_str);
+        // Bencode::encodeBencode(info_dict, info_bencoded_str);
         std::cout << "Info Bencoded: " << info_bencoded_str << std::endl;
+
+        // sha1.hpp used here to calculate info hash
+        SHA1 checksum;
+        checksum.update(info_bencoded_str);
+        std::string info_hash = checksum.final();
+
+        // std::string info_hash = checksum.from_file(path);
 
         // Retrieve Values for Keys:
         auto tracker_it = torrent_table.find("announce"); // Tracker Link
@@ -419,16 +473,22 @@ namespace Bencode
         {
             nlohmann::json link_j = tracker_it.value();
             nlohmann::json length_j = length_it.value();
-            nlohmann::json pieces_j = pieces_it.value();    
+            nlohmann::json pieces_j = pieces_it.value();
 
             std::string link = link_j.dump();
             std::string length = length_j.dump();
             std::string pieces = pieces_j.dump();
+            // std::string pieces_pure = pieces.substr(pieces.find_first_of("\"") + 1, pieces.find_last_of("\"") - 1);
+
+            // BUG: Hash Computation Wrong
+
+            // std::cout << "Testing hexToBytes method on pieces of size " << pieces_pure.length() << " " << hexToBytes(pieces_pure) << std::endl;
 
             std::vector<std::string> vector_info;
             vector_info.push_back(link.substr(link.find_first_of("\"") + 1, link.find_last_of("\"") - 1));
             vector_info.push_back(length);
-            vector_info.push_back(pieces.substr(pieces.find_first_of("\"") + 1, pieces.find_last_of("\"") - 1));
+            // vector_info.push_back(pieces.substr(pieces.find_first_of("\"") + 1, pieces.find_last_of("\"") - 1));
+            vector_info.push_back(info_hash);
 
             return vector_info;
 
