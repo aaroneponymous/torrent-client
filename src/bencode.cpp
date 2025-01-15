@@ -39,12 +39,12 @@ namespace Bencode
 
         if (e_index != std::string::npos)
         {
-            // Check for disallowed values
-            std::string number_str = encoded_string.substr(pos + 1, e_index - 1);
-            int64_t number = std::atoll(number_str.c_str());
-
+            // Check for disallowed values (Maybe Required Later On)
             // Account for valid integer str conversions
             // Invalid: i-0e or trailing zeroes i002e
+
+            std::string number_str = encoded_string.substr(pos + 1, e_index - 1);
+            int64_t number = std::atoll(number_str.c_str());
 
             // std::cout << "number_str: " + number_str + "\n";
             // std::cout << "number_str length: " << number_str.length() << "\n";
@@ -82,6 +82,10 @@ namespace Bencode
         {
             int64_t str_length = std::atoll((encoded_string.substr(pos, colon_index - pos)).c_str());
             std::string str = encoded_string.substr(colon_index + 1, str_length);
+
+            // [ ] Check:
+            // 1. str of the right length - str_length (e.g. 5:helloooooo)
+
             pos = colon_index + str_length + 1;
 
             return nlohmann::json(str);
@@ -99,9 +103,17 @@ namespace Bencode
 
         nlohmann::json list = nlohmann::json::array();
 
+        // [x]: Invalid str: d<...> [no ending delimiter 'e']
+        //      Results in index out of bounds - within the other functions? 
+
         while (encoded_string[pos] != 'e')
         {
             list.push_back(decodeBencode(encoded_string, pos));
+
+            if (pos == std::string::npos)
+            {
+                throw std::runtime_error("Invalid encoded value [No Ending Delimiter 'e' found]: " + encoded_string);
+            }
         }
 
         pos++;
