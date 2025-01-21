@@ -44,15 +44,13 @@ int main(int argc, char *argv[])
 
         std::cout << "Tracker URL: " + decoded_torrent_info[0] + "\n";
         std::cout << "Length: " + decoded_torrent_info[1] + "\n";
-        std::cout << "Info Hash: " + decoded_torrent_info[2] << std::endl;
-        // std::string output = decoded_torrent_info.dump();
-        //     std::cout << output.substr(1, output.size() - 2) << std::endl;
-        // std::cout << std::to_string(decoded_torrent_info) << std::endl;
-        // std::cout << decoded_torrent_info.dump() << std::endl;
-
-        // std::pair<nlohmann::json, nlohmann::json> tor(Bencode::parseTorrent(path, pos));
-        // std::cout << "Tracker URL: " << tor.first.dump() << "\n";
-        // std::cout << "Piece Length: " << tor.second.dump() << std::endl;
+        std::cout << "Info Hash: " + decoded_torrent_info[2] + "\n";
+        std::cout << "Piece Length: " + decoded_torrent_info[3] + "\n";
+        std::cout << "Piece Hashes: \n";
+        for (auto i = 4; i < decoded_torrent_info.size(); ++i)
+        {
+            std::cout << decoded_torrent_info[i] << "\n";
+        }
     }
     else
     {

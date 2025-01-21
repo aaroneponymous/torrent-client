@@ -22,19 +22,19 @@ namespace Bencode
 
     // Set of Decoding Functions
 
-    auto decodeBencode(const std::string &encoded_string, size_t &pos) -> nlohmann::json;
+    nlohmann::json decodeBencode(const std::string &encoded_string, size_t &pos);
 
-    auto decodeInt(const std::string &encoded_string, size_t &pos) -> nlohmann::json;
+    nlohmann::json decodeInt(const std::string &encoded_string, size_t &pos);
 
-    auto decodeStr(const std::string &encoded_string, size_t &pos) -> nlohmann::json;
+    nlohmann::json decodeStr(const std::string &encoded_string, size_t &pos);
 
-    auto decodeList(const std::string &encoded_string, size_t &pos) -> nlohmann::json;
+    nlohmann::json decodeList(const std::string &encoded_string, size_t &pos);
 
-    auto decodeDict(const std::string &encoded_string, size_t &pos) -> nlohmann::json;
+    nlohmann::json decodeDict(const std::string &encoded_string, size_t &pos);
 
     // Helper Functions Hash - Hexadecimal Conversions
 
-    auto piecestoHashStr(const std::string &encoded_string, size_t &pos) -> nlohmann::json;
+    nlohmann::json piecestoHashStr(const std::string &encoded_string, size_t &pos);
 
     auto bytesToHex(const std::string &bytes_string) -> std::string;
 
@@ -54,8 +54,9 @@ namespace Bencode
 
     // Torrent Parsers
 
-    auto parseTorrent(const std::string &path, size_t &pos) -> nlohmann::json;
+    auto parseTorrent(const std::string &path) -> const nlohmann::json;
 
-    auto infoTorrent(const std::string &path, size_t &pos) -> std::vector<std::string>;
+    auto infoTorrent(const std::string &path, size_t &pos) -> const std::vector<std::string>;
+
 
 }
