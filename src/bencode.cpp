@@ -4,6 +4,32 @@ namespace Bencode
 {
     // Set of Decoding Functions
 
+    nlohmann::json decodeEncoding(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
+    {
+        if (std::isdigit(*it_begin))
+        {
+            return Bencode::decodeString(it_begin, it_end);
+            
+        }
+        else if (*it_begin == 'i')
+        {
+            return Bencode::decodeInteger(it_begin, it_end);
+        }
+        else if (*it_begin == 'l')
+        {
+            return Bencode::decodeListing(it_begin, it_end);
+        }
+        else if (*it_begin == 'd')
+        {
+            return Bencode::decodeDictionary(it_begin, it_end);
+        }
+        else
+        {
+            std::string encoded_string(it_begin, it_end);
+            throw std::runtime_error("Unhandled encoded value: " + encoded_string);
+        }
+    }
+
     nlohmann::json decodeBencode(const std::string &encoded_string, size_t &pos)
     {
 
@@ -26,6 +52,29 @@ namespace Bencode
         else
         {
             throw std::runtime_error("Unhandled encoded value: " + encoded_string);
+        }
+    }
+
+    
+    nlohmann::json decodeInteger(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
+    {
+        // [ ]: Exception Handling Needs to Be Done
+
+        std::string encoded_string(it_begin, it_end);
+
+        auto it_e = std::find(it_begin, it_end, 'e');
+
+        if (it_e != it_end)
+        {
+            std::string number_str(++it_begin, it_end);
+            int64_t number = std::atoll(number_str.c_str());
+            it_begin = it_e + 1;
+
+            return nlohmann::json(number);
+        }
+        else
+        {
+            throw std::runtime_error("Invalid Encoded Int Value: " + encoded_string); 
         }
     }
 
@@ -57,6 +106,30 @@ namespace Bencode
         else
         {
             throw std::runtime_error("Invalid encoded value: " + encoded_string);
+        }
+    }
+
+    nlohmann::json decodeString(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
+    {
+
+        std::string encoded_string(it_begin, it_end);
+        
+        auto it_colon = std::find(it_begin, it_end, ':');
+
+        if (it_colon != it_end)
+        {
+            std::string substr(it_begin, it_colon);
+            int64_t str_length = std::atoll(substr.c_str());
+            it_begin = it_colon + 1;
+            it_colon = it_colon + str_length + 1;
+            
+            std::string value(it_begin, it_end);
+
+            return nlohmann::json(value);
+        }
+        else
+        {
+            throw std::runtime_error("Invalid Encoded String Value: " + encoded_string); 
         }
     }
 
@@ -93,6 +166,30 @@ namespace Bencode
         }
     }
 
+
+    nlohmann::json decodeListing(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
+    {
+        std::string encoded_string(it_begin, it_end);
+        nlohmann::json list = nlohmann::json::array();
+        
+        while (++it_begin != it_end && *it_begin != 'e')
+        {
+            list.push_back(decodeEncoding(it_begin, it_end));
+
+            if (it_begin == it_end)
+            {
+
+                throw std::runtime_error("Invalid encoded value [No Ending Delimiter 'e' found]: " + encoded_string);
+            }
+        }
+
+        ++it_begin;
+        
+        return list;
+    }
+
+
+
     nlohmann::json decodeList(const std::string &encoded_string, size_t &pos)
     {
 
@@ -116,6 +213,24 @@ namespace Bencode
         pos++;
 
         return list;
+    }
+
+    nlohmann::json decodeDictionary(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
+    {
+        std::string encoded_string(it_begin, it_end);
+        nlohmann::json dict = nlohmann::json::object();
+
+        while (++it_begin != it_end && *it_begin != 'e')
+        {
+            if (!std::isdigit(*it_begin))
+            {
+                throw std::runtime_error("Key cannot be a non-string value" + encoded_string);
+            }
+
+            auto key = decodeEncoding(it_begin, it_end);
+
+            std::string piece_str(it_begin, it_end);
+        }
     }
 
     // [ ]: Unfinished Needs Proper Implementation for All Keys?

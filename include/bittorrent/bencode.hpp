@@ -19,6 +19,20 @@
 
 namespace Bencode
 {
+    // Set of Decoding Functions (Using Iterators) 
+
+    nlohmann::json decodeEncoding(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
+
+    nlohmann::json decodeString(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
+    
+    nlohmann::json decodeInteger(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
+
+    nlohmann::json decodeListing(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
+
+    nlohmann::json decodeDictionary(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
+    
+
+
 
     // Set of Decoding Functions
 

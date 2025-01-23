@@ -52,6 +52,24 @@ int main(int argc, char *argv[])
             std::cout << decoded_torrent_info[i] << "\n";
         }
     }
+    else if (command == "testStr")
+    {
+        if (argc < 3)
+        {
+            std::cerr << "Usage: " << argv[0] << " testStr <encoded_value>" << std::endl;
+            return 1;
+        }
+
+        std::string encoded_value = argv[2];
+        Bencode::decodeString(encoded_value.cbegin(), encoded_value.cend());
+    }
+    else if (command == "testInt")
+    {
+
+        std::string encoded_value = argv[2];
+        Bencode::decodeInteger(encoded_value.cbegin(), encoded_value.cend());
+
+    }
     else
     {
         std::cerr << "unknown command: " << command << std::endl;
