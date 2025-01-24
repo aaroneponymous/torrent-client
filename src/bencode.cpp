@@ -60,7 +60,6 @@ namespace Bencode
     {
         // [ ]: Exception Handling Needs to Be Done
 
-        std::string encoded_string(it_begin, it_end);
 
         auto it_e = std::find(it_begin, it_end, 'e');
 
@@ -74,13 +73,13 @@ namespace Bencode
         }
         else
         {
+            std::string encoded_string(it_begin, it_end);
             throw std::runtime_error("Invalid Encoded Int Value: " + encoded_string); 
         }
     }
 
     nlohmann::json decodeInt(const std::string &encoded_string, size_t &pos)
     {
-
         size_t e_index = encoded_string.find_first_of('e', pos);
 
         if (e_index != std::string::npos)
@@ -111,9 +110,6 @@ namespace Bencode
 
     nlohmann::json decodeString(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
     {
-
-        std::string encoded_string(it_begin, it_end);
-        
         auto it_colon = std::find(it_begin, it_end, ':');
 
         if (it_colon != it_end)
@@ -129,6 +125,7 @@ namespace Bencode
         }
         else
         {
+            std::string encoded_string(it_begin, it_end);
             throw std::runtime_error("Invalid Encoded String Value: " + encoded_string); 
         }
     }
@@ -169,7 +166,6 @@ namespace Bencode
 
     nlohmann::json decodeListing(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
     {
-        std::string encoded_string(it_begin, it_end);
         nlohmann::json list = nlohmann::json::array();
         
         while (++it_begin != it_end && *it_begin != 'e')
@@ -178,7 +174,7 @@ namespace Bencode
 
             if (it_begin == it_end)
             {
-
+                std::string encoded_string(it_begin, it_end);
                 throw std::runtime_error("Invalid encoded value [No Ending Delimiter 'e' found]: " + encoded_string);
             }
         }
@@ -217,13 +213,13 @@ namespace Bencode
 
     nlohmann::json decodeDictionary(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
     {
-        std::string encoded_string(it_begin, it_end);
         nlohmann::json dict = nlohmann::json::object();
 
         while (++it_begin != it_end && *it_begin != 'e')
         {
             if (!std::isdigit(*it_begin))
             {
+                std::string encoded_string(it_begin, it_end);
                 throw std::runtime_error("Key cannot be a non-string value" + encoded_string);
             }
 
@@ -397,6 +393,39 @@ namespace Bencode
     }
 
     // Helper Functions Hash - Hexadecimal Conversions
+
+    nlohmann::json piecesToHashStr(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
+    {
+        auto it_colon = std::find(it_begin, it_end, ':');
+
+        if (it_colon != it_end)
+        {
+            std::string number_string(it_begin, it_colon);
+            int64_t string_length = std::atoll(number_string.c_str());
+            std::string pieces_string(it_colon, it_colon + string_length);
+
+            if ((string_length % 20 != 0) && (pieces_string.size() != string_length))   // [ ] Redundant check? pieces_string.size() != string_length
+            {
+                throw std::runtime_error("Invalid Length of pieces string: " + string_length);
+            }
+
+            auto pieces_count = string_length / 20;
+            std::string pieces_output;
+            pieces_output.reserve(string_length * 2);
+
+            std::string pieces_hex = bytesToHex(pieces_output);
+
+            it_begin = it_colon + 1;
+
+            return nlohmann::json(pieces_output);
+        }
+        else
+        {
+            std::string encoded_string(it_begin, it_end);
+            throw std::runtime_error("Invalid encoded value: " + encoded_string);
+        }
+
+    }
 
     nlohmann::json piecestoHashStr(const std::string &encoded_string, size_t &pos)
     {

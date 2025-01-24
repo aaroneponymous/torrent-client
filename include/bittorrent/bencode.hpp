@@ -48,6 +48,8 @@ namespace Bencode
 
     // Helper Functions Hash - Hexadecimal Conversions
 
+    nlohmann::json piecesToHashStr(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
+
     nlohmann::json piecestoHashStr(const std::string &encoded_string, size_t &pos);
 
     auto bytesToHex(const std::string &bytes_string) -> std::string;

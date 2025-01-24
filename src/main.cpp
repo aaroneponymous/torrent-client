@@ -16,6 +16,7 @@ int main(int argc, char *argv[])
     }
 
     std::string command = argv[1];
+    const std::string encoded_value(argv[2]);
 
     if (command == "decode")
     {
@@ -25,7 +26,6 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        std::string encoded_value = argv[2];
         size_t position = 0;
         auto decoded_value = Bencode::decodeBencode(encoded_value, position);
         std::cout << decoded_value.dump() << std::endl;
@@ -60,13 +60,11 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        std::string encoded_value = argv[2];
         Bencode::decodeString(encoded_value.cbegin(), encoded_value.cend());
     }
     else if (command == "testInt")
     {
 
-        std::string encoded_value = argv[2];
         Bencode::decodeInteger(encoded_value.cbegin(), encoded_value.cend());
 
     }
