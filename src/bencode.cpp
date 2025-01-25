@@ -117,9 +117,10 @@ namespace Bencode
             std::string substr(it_begin, it_colon);
             int64_t str_length = std::atoll(substr.c_str());
             it_begin = it_colon + 1;
-            it_colon = it_colon + str_length + 1;
+            it_colon = it_begin + str_length;
             
-            std::string value(it_begin, it_end);
+            std::string value(it_begin, it_colon);
+            it_begin = it_colon;
 
             return nlohmann::json(value);
         }
@@ -163,7 +164,6 @@ namespace Bencode
         }
     }
 
-
     nlohmann::json decodeListing(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
     {
         nlohmann::json list = nlohmann::json::array();
@@ -183,8 +183,6 @@ namespace Bencode
         
         return list;
     }
-
-
 
     nlohmann::json decodeList(const std::string &encoded_string, size_t &pos)
     {
@@ -224,9 +222,16 @@ namespace Bencode
             }
 
             auto key = decodeEncoding(it_begin, it_end);
+            nlohmann::json val = (key == "pieces") ? piecesToHashStr(it_begin, it_end) : decodeEncoding(it_begin, it_end);
 
-            std::string piece_str(it_begin, it_end);
+            dict[key] = val;
+            // [ ]: Improve on decrementing it_begin to point back to correct the incremented it_begin
+            it_begin--;
         }
+
+        ++it_begin;
+        
+        return nlohmann::json(dict);
     }
 
     // [ ]: Unfinished Needs Proper Implementation for All Keys?
