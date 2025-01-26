@@ -47,8 +47,6 @@ _deps
 .DS_Store
 build/
 
-# Json Library Code
-include/json.hpp
 
 # vscode
 /.vscode
