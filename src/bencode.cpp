@@ -416,7 +416,8 @@ namespace Bencode
         {
             std::string number_string(it_begin, it_colon);
             int64_t string_length = std::atoll(number_string.c_str());
-            std::string pieces_string(it_colon, it_colon + string_length);
+            std::string pieces_string(it_colon + 1, it_colon + string_length + 1);
+            std::cout << "piecesToHashStr pieces_string: " << pieces_string;
 
             if ((string_length % 20 != 0) && (pieces_string.size() != string_length))   // [ ] Redundant check? pieces_string.size() != string_length
             {
