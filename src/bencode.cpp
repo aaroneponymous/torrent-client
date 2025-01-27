@@ -6,7 +6,6 @@ namespace Bencode
 
     nlohmann::json decodeEncoding(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
     {
-        std::cout << "decodeEncoding Entered\n";
         if (std::isdigit(*it_begin))
         {
             return Bencode::decodeString(it_begin, it_end);
@@ -228,18 +227,14 @@ namespace Bencode
 
             auto key = decodeEncoding(it_begin, it_end);
             nlohmann::json val = (key == "pieces") ? piecesToHashStr(it_begin, it_end) : decodeEncoding(it_begin, it_end);
-
-            std::cout << "\ndecodeDictionary val dump: " << val.dump() << "\n";
-
             dict[key] = val;
 
             // [ ]: Improve on decrementing it_begin to point back to correct the incremented it_begin
-
             it_begin--;
         }
 
         ++it_begin;
-        
+
         return nlohmann::json(dict);
     }
 
@@ -415,22 +410,20 @@ namespace Bencode
         if (it_colon != it_end)
         {
             std::string number_string(it_begin, it_colon);
-            int64_t string_length = std::atoll(number_string.c_str());
+            u_int64_t string_length = std::atoll(number_string.c_str());
             std::string pieces_string(it_colon + 1, it_colon + string_length + 1);
-            std::cout << "piecesToHashStr pieces_string: " << pieces_string;
 
-            if ((string_length % 20 != 0) && (pieces_string.size() != string_length))   // [ ] Redundant check? pieces_string.size() != string_length
+            if ((string_length % 20 != 0) && (pieces_string.length() != string_length))   // [ ] Redundant check? pieces_string.size() != string_length
             {
                 throw std::runtime_error("Invalid Length of pieces string: " + string_length);
             }
 
-            auto pieces_count = string_length / 20;
             std::string pieces_output;
             pieces_output.reserve(string_length * 2);
 
-            std::string pieces_hex = bytesToHex(pieces_output);
+            pieces_output = bytesToHex(pieces_string);
 
-            it_begin = it_colon + 1;
+            it_begin = it_colon + string_length + 1;
 
             return nlohmann::json(pieces_output);
         }
