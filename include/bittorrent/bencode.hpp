@@ -70,7 +70,9 @@ namespace Bencode
 
     // Torrent Parsers
 
-    auto parseTorrent(const std::string &path) -> const nlohmann::json;
+    nlohmann::json parseTorrent(const std::string &path);
+
+    const std::vector<const std::string> getTorrentInfo(const std::string &path);
 
     auto infoTorrent(const std::string &path, size_t &pos) -> const std::vector<std::string>;
 

@@ -70,6 +70,11 @@ int main(int argc, char *argv[])
         Bencode::decodeInteger(it_begin, it_end);
 
     }
+    else if (command == "testList")
+    {
+        auto decoded_list = Bencode::decodeListing(it_begin, it_end);
+        std::cout << decoded_list.dump() << std::endl;
+    }
     else if (command == "testDict")
     {
         auto decoded_dict = Bencode::decodeEncoding(it_begin, it_end);

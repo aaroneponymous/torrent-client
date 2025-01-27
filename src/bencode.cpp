@@ -6,6 +6,7 @@ namespace Bencode
 
     nlohmann::json decodeEncoding(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
     {
+        std::cout << "decodeEncoding Entered\n";
         if (std::isdigit(*it_begin))
         {
             return Bencode::decodeString(it_begin, it_end);
@@ -65,7 +66,7 @@ namespace Bencode
 
         if (it_e != it_end)
         {
-            std::string number_str(++it_begin, it_end);
+            std::string number_str(++it_begin, it_e);
             int64_t number = std::atoll(number_str.c_str());
             it_begin = it_e + 1;
 
@@ -177,6 +178,10 @@ namespace Bencode
                 std::string encoded_string(it_begin, it_end);
                 throw std::runtime_error("Invalid encoded value [No Ending Delimiter 'e' found]: " + encoded_string);
             }
+
+            // [ ]: Find a better more readable way to ensure correctness of iterator position
+
+            it_begin--;
         }
 
         ++it_begin;
@@ -224,8 +229,12 @@ namespace Bencode
             auto key = decodeEncoding(it_begin, it_end);
             nlohmann::json val = (key == "pieces") ? piecesToHashStr(it_begin, it_end) : decodeEncoding(it_begin, it_end);
 
+            std::cout << "\ndecodeDictionary val dump: " << val.dump() << "\n";
+
             dict[key] = val;
+
             // [ ]: Improve on decrementing it_begin to point back to correct the incremented it_begin
+
             it_begin--;
         }
 
@@ -540,7 +549,7 @@ namespace Bencode
 
     // Torrent Parser
 
-    auto parseTorrent(const std::string &path) -> const nlohmann::json
+    nlohmann::json parseTorrent(const std::string &path)
     {
         std::streampos size;
         char *buffer;
@@ -557,11 +566,13 @@ namespace Bencode
             file.read(buffer, size);
 
             std::string torrent_info_str(buffer, buff_size);
+            auto it_begin = torrent_info_str.cbegin();
+            auto it_end = torrent_info_str.cend();
 
             try
             {
-                size_t position = 0;
-                torrent_info = Bencode::decodeBencode(torrent_info_str, position);
+                torrent_info = decodeEncoding(it_begin, it_end);
+              
             }
             catch (...)
             {
