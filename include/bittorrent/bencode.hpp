@@ -72,9 +72,7 @@ namespace Bencode
 
     nlohmann::json parseTorrent(const std::string &path);
 
-    const std::vector<const std::string> getTorrentInfo(const std::string &path);
-
-    auto infoTorrent(const std::string &path, size_t &pos) -> const std::vector<std::string>;
+    const std::vector<std::string> getTorrentInfo(const std::string &path);
 
 
 }

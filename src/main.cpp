@@ -1,6 +1,31 @@
 #include <iostream>
 #include "../include/bittorrent/bencode.hpp"
+#include <stdio.h>
+#include <curl/curl.h>
+#include <random>
 
+std::string generateRandomPeerID(int length)
+{
+    const std::string characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    std::random_device rd;
+    std::mt19937 generator(rd());
+    std::uniform_int_distribution<int> distribution(0, characters.size() - 1);
+
+    std::string random_string;
+    for (auto i = 0; i < length; ++i)
+    {
+        random_string += characters[distribution(generator)];
+    }
+
+    return random_string;
+}
+
+static size_t WriteCallback(char *contents, size_t size, size_t nmemb, void *userp)
+{
+    size_t realsize = size * nmemb;
+    std::cout.write(contents, realsize);
+    return realsize;
+}
 
 int main(int argc, char *argv[])
 {
@@ -41,8 +66,7 @@ int main(int argc, char *argv[])
 
         std::string path = argv[2];
 
-        size_t pos = 0;
-        std::vector<std::string> decoded_torrent_info = Bencode::infoTorrent(path, pos);
+        std::vector<std::string> decoded_torrent_info = Bencode::getTorrentInfo(path);
 
         std::cout << "Tracker URL: " + decoded_torrent_info[0] + "\n";
         std::cout << "Length: " + decoded_torrent_info[1] + "\n";
@@ -52,6 +76,45 @@ int main(int argc, char *argv[])
         for (auto i = 4; i < decoded_torrent_info.size(); ++i)
         {
             std::cout << decoded_torrent_info[i] << "\n";
+        }
+
+        std::string url = decoded_torrent_info[0];
+        std::string info_hash = decoded_torrent_info[2];
+        std::string total_length = decoded_torrent_info[1];
+
+        // Curl Methods & Calls
+
+        CURLcode ret;
+        CURL *curl;
+
+        curl = curl_easy_init();
+
+        if (curl)
+        {
+            char *base_url = curl_easy_escape(curl, url.c_str(), 0); 
+            char *info_hash_param1 = curl_easy_escape(curl, Bencode::hexToBytes(info_hash).c_str(), 0);
+            char *peer_id_param2 = curl_easy_escape(curl, generateRandomPeerID(20).c_str(), 0);
+            char *port_no_param3 = curl_easy_escape(curl, "6881", 0);
+            char *uploaded_param4 = curl_easy_escape(curl, "0", 0);
+            char *downloaded_param5 = curl_easy_escape(curl, "0", 0);
+            char *left_param6 = curl_easy_escape(curl, total_length.c_str(), 0);
+            char *compact_param7 = curl_easy_escape(curl, "1", 0);
+
+            std::string full_url = url + "?info_hash=" + info_hash_param1 + "&peer_id=" + peer_id_param2 + "&port=" + port_no_param3 + "&uploaded=" + uploaded_param4 + "&downloaded=" + downloaded_param5 + "&left=" + left_param6 + "&compact=" + compact_param7;
+            std::cout << full_url << "\n";
+
+            curl_easy_setopt(curl, CURLOPT_URL, full_url.c_str());
+
+            // Set the write callback
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+
+            // Perform the request
+            ret = curl_easy_perform(curl);
+
+            curl_easy_cleanup(curl);
+            curl = nullptr;
+
+            std::cout << static_cast<int>(ret) << std::endl;
         }
     }
     else if (command == "testStr")
@@ -68,7 +131,6 @@ int main(int argc, char *argv[])
     {
 
         Bencode::decodeInteger(it_begin, it_end);
-
     }
     else if (command == "testList")
     {

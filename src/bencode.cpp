@@ -584,7 +584,7 @@ namespace Bencode
         }
     }
 
-    auto infoTorrent(const std::string &path, size_t &pos) -> const std::vector<std::string>
+    const std::vector<std::string> getTorrentInfo(const std::string &path)  
     {
         nlohmann::json torrent_table = parseTorrent(path);
         auto torrent_info = torrent_table.find("info"); // Return Type: Iterator
