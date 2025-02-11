@@ -261,7 +261,7 @@ namespace Bencode
 
             // [ ]: Value for pieces - return type list of strings (improvement in infoTorrent())
 
-            nlohmann::json val = (key == "pieces") ? Bencode::piecestoHashStr(encoded_string, pos) : Bencode::decodeBencode(encoded_string, pos);
+            nlohmann::json val = (key == "pieces" || key == "peers") ? Bencode::piecestoHashStr(encoded_string, pos) : Bencode::decodeBencode(encoded_string, pos);
 
             // [ ]: Use map iterator method to insert (prevent unexpected addition of default value)
 

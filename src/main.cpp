@@ -20,6 +20,51 @@ std::string generateRandomPeerID(int length)
     return random_string;
 }
 
+// https://stackoverflow.com/questions/13905774/in-c-how-do-you-use-libcurl-to-read-a-http-response-into-a-string
+
+struct URL_Data
+{
+    size_t size;
+    char *data;
+};
+
+// nmemb - no of memory blocks or elements being passed to the function
+// size  - the size (in bytes) of each individual element
+
+size_t write_data(void *ptr, size_t size, size_t nmemb, struct URL_Data *url_data)
+{
+    size_t index = url_data->size;
+    size_t n = (size * nmemb);
+    char *temp;
+
+    url_data->size += (size * nmemb);
+
+    fprintf(stderr, "data at %p size=%ld nmemb=%ld\n", ptr, size, nmemb);
+
+    temp = (char *)realloc(url_data->data, url_data->size + 1); /* +1 for nullable char '\0' */
+
+    if (temp)
+    {
+        url_data->data = temp;
+    }
+    else
+    {
+        if (url_data->data)
+        {
+            free(url_data->data);
+        }
+
+        fprintf(stderr, "Failed to allocate memory.\n");
+        return 0;
+    }
+
+    memcpy((url_data->data + index), ptr, n);
+    url_data->data[url_data->size] = '\0';
+
+    return size * nmemb;
+}
+
+
 static size_t WriteCallback(char *contents, size_t size, size_t nmemb, void *userp)
 {
     size_t realsize = size * nmemb;
@@ -84,14 +129,26 @@ int main(int argc, char *argv[])
 
         // Curl Methods & Calls
 
-        CURLcode ret;
+        struct URL_Data data;
+        data.size = 0;
+        data.data = (char *)malloc(4096);
+        if (NULL == data.data)
+        {
+            fprintf(stderr, "Failed to allocate memory.\n");
+            return NULL;
+        }
+
+        data.data[0] = '\0';
+        
         CURL *curl;
+        CURLcode ret;
+
 
         curl = curl_easy_init();
 
         if (curl)
         {
-            char *base_url = curl_easy_escape(curl, url.c_str(), 0); 
+            char *base_url = curl_easy_escape(curl, url.c_str(), 0);
             char *info_hash_param1 = curl_easy_escape(curl, Bencode::hexToBytes(info_hash).c_str(), 0);
             char *peer_id_param2 = curl_easy_escape(curl, generateRandomPeerID(20).c_str(), 0);
             char *port_no_param3 = curl_easy_escape(curl, "6881", 0);
@@ -103,18 +160,34 @@ int main(int argc, char *argv[])
             std::string full_url = url + "?info_hash=" + info_hash_param1 + "&peer_id=" + peer_id_param2 + "&port=" + port_no_param3 + "&uploaded=" + uploaded_param4 + "&downloaded=" + downloaded_param5 + "&left=" + left_param6 + "&compact=" + compact_param7;
             std::cout << full_url << "\n";
 
-            curl_easy_setopt(curl, CURLOPT_URL, full_url.c_str());
+            curl_free(base_url);
+            curl_free(info_hash_param1);
+            curl_free(peer_id_param2);
+            curl_free(port_no_param3);
+            curl_free(uploaded_param4);
+            curl_free(downloaded_param5);
+            curl_free(compact_param7);
 
-            // Set the write callback
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+            curl_easy_setopt(curl, CURLOPT_URL, full_url.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_data);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &data);
 
             // Perform the request
             ret = curl_easy_perform(curl);
 
+
             curl_easy_cleanup(curl);
             curl = nullptr;
 
-            std::cout << static_cast<int>(ret) << std::endl;
+            std::string response = data.data;
+            size_t pos = 0;
+
+            auto decoded_value = Bencode::decodeBencode(response, pos);
+
+            std::cout << decoded_value.dump() << "\n";
+
+
+
         }
     }
     else if (command == "testStr")
