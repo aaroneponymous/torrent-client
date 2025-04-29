@@ -110,6 +110,14 @@ namespace Bencode
                 return std::regex_match(str, strict_int_regex);
             }
 
+            inline bool is_strict_positive_integer(const std::string& str) {
+                static const std::regex strict_positive_int_regex(
+                    R"(^(0|[1-9]\d*)$)"
+                );
+                return std::regex_match(str, strict_positive_int_regex);
+            }
+            
+
         public:
 
             BencodeAST bencode_tree_;

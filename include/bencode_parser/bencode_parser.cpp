@@ -60,7 +60,7 @@ namespace Bencode
         
         if ((*it_curr == 'i') && (it_curr + 1) != it_end) return parse_int(byte_stream, it_curr, it_end);
 
-        // else if (std::isdigit(*it_curr) && (it_curr + 1) != it_end) return parse_string(byte_stream, it_curr, it_end);
+        else if (std::isdigit(*it_curr) && (it_curr + 1) != it_end) return parse_string(byte_stream, it_curr, it_end);
 
         // else if ((*it_curr == 'l') && it_curr++ != it_end) return parse_list(byte_stream, it_curr, it_end);
 
@@ -70,13 +70,10 @@ namespace Bencode
 
     }
 
-
-    
-
     const Parser::BencodeAST Parser::parse_int(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end)
     {
-
-        auto it_e = std::find(it_curr++, it_end, 'e');
+        it_curr++;
+        auto it_e = std::find(it_curr, it_end, 'e');
 
         if (it_e != it_end) {
 
@@ -102,8 +99,49 @@ namespace Bencode
 
     }
     
-    // const Parser::BencodeAST Parser::parse_string(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end)
-    // {
+    const Parser::BencodeAST Parser::parse_string(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end)
+    {
+        // retrieve length of string (encoded: Base 10 ASCII)
         
-    // }
+        auto it_colon = std::find(it_curr, it_end, ':');
+
+        if (it_colon != it_end)
+        {
+            std::string str_length(it_curr, it_colon);
+            
+
+            if (!is_strict_positive_integer(str_length)) {
+                throw std::runtime_error("Invalid encoded string length: <" + str_length);
+            }
+            
+            auto ul_length = std::strtoull(str_length.c_str(), nullptr, 10);
+            size_t length_size_t = static_cast<size_t>(ul_length);
+
+            it_colon++;
+            std::string_view str = byte_stream.substr(static_cast<std::size_t>(it_colon - byte_stream.begin()), length_size_t);
+
+            it_curr = it_colon + length_size_t + 1;
+
+            return BencodeAST(str);
+        }
+        else
+        {
+            std::string encoded_string(it_curr, it_end);
+            throw std::runtime_error("Invalid Encoded Int String: i<" + encoded_string);
+        }
+        
+
+        // check for numeric validity of the length (len >= 0)
+
+        // find first instance of ':' and move iterator one step forward
+
+        // copy the length number of chars after the ':' (ensure access is not out-of-bounds)
+
+        // construct B
+
+
+
+
+        
+    }
 }
