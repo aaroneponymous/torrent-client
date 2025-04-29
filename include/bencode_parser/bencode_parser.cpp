@@ -40,18 +40,22 @@ Example: de represents an empty dictionary {}
 
 namespace Bencode
 {
+    // NOTE: Find an alternative version to populate bencode_tree_ with returned temp_val
+
     void Parser::parse(std::string_view byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end)
     {
-        bencode_tree_ = parse_stream(byte_stream, it_curr, it_end);
+        BencodeAST temp_val = parse_stream(byte_stream, it_curr, it_end);
+        bencode_tree_.type_ = temp_val.type_;
+        std::swap(temp_val.value_, bencode_tree_.value_);
 
     }
 
-    // const Parser::BencodeItem Parser::get_tree() const
+    // const Parser::BencodeAST Parser::get_tree() const
     // {
     //     return bencode_tree_;
     // }
 
-    const Parser::BencodeItem Parser::parse_stream(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end)
+    const Parser::BencodeAST Parser::parse_stream(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end)
     {
         
         if ((*it_curr == 'i') && (it_curr + 1) != it_end) return parse_int(byte_stream, it_curr, it_end);
@@ -62,14 +66,14 @@ namespace Bencode
 
         // else if ((*it_curr == 'd') && it_curr++ != it_end) return parse_dict(byte_stream, it_curr, it_end);
 
-        return BencodeItem();
+        return BencodeAST();
 
     }
 
 
     
 
-    const Parser::BencodeItem Parser::parse_int(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end)
+    const Parser::BencodeAST Parser::parse_int(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end)
     {
 
         auto it_e = std::find(it_curr++, it_end, 'e');
@@ -86,7 +90,7 @@ namespace Bencode
             int64_t number = std::atoll(number_str.c_str());
             it_curr = it_e + 1;
 
-            return BencodeItem(number);
+            return BencodeAST(number);
 
         }
         else {
@@ -98,7 +102,7 @@ namespace Bencode
 
     }
     
-    // const Parser::BencodeItem Parser::parse_string(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end)
+    // const Parser::BencodeAST Parser::parse_string(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end)
     // {
         
     // }

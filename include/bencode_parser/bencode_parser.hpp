@@ -15,35 +15,62 @@ namespace Bencode
     {
         public:
 
-            struct BencodeItem {
+            struct BencodeAST {
                 enum class Type { Integer, String, List, Dict, Empty };
 
-                using BencodeNode = std::variant<int64_t, std::string_view, std::vector<BencodeItem>, 
-                std::map<std::string_view, BencodeItem>>;
+                using Node = std::variant<int64_t, std::string_view, std::vector<BencodeAST>, 
+                std::map<std::string_view, BencodeAST>>;
                 
                 Type type_;
-                BencodeNode value_;
+                Node value_;
 
-                BencodeItem() : type_(Type::Empty) {}
+                BencodeAST() : type_(Type::Empty) {}
 
                 template <typename T>
-                BencodeItem(T&& val) {
+                BencodeAST(T&& val) {
                     using Decayed = std::decay_t<T>;
 
                     if constexpr (std::is_same_v<Decayed, int64_t>) {
                         type_ = Type::Integer;
                     } else if constexpr (std::is_same_v<Decayed, std::string_view>) {
                         type_ = Type::String;
-                    } else if constexpr (std::is_same_v<Decayed, std::vector<BencodeItem>>) {
+                    } else if constexpr (std::is_same_v<Decayed, std::vector<BencodeAST>>) {
                         type_ = Type::List;
-                    } else if constexpr (std::is_same_v<Decayed, std::map<std::string_view, BencodeItem>>) {
+                    } else if constexpr (std::is_same_v<Decayed, std::map<std::string_view, BencodeAST>>) {
                         type_ = Type::Dict;
                     } else {
-                        static_assert(always_false<T>::value, "Unsupported type for BencodeItem");
+                        static_assert(always_false<T>::value, "Unsupported type for BencodeAST");
                     }
 
                     value_ = std::forward<T>(val);
                 }
+
+                // // Copy constructor
+                // BencodeAST(const BencodeAST& other)
+                // : type_(other.type_), value_(other.value_) {}
+
+                // // Copy assignment
+                // BencodeAST& operator=(const BencodeAST& other) {
+                //     if (this != &other) {
+                //         type_ = other.type_;
+                //         value_ = other.value_;
+                //     }
+                //     return *this;
+                // }
+
+                // // Move constructor
+                // BencodeAST(BencodeAST&& other) noexcept
+                //     : type_(other.type_), value_(std::move(other.value_)) {}
+
+                // // Move assignment
+                // BencodeAST& operator=(BencodeAST&& other) noexcept {
+                //     if (this != &other) {
+                //         type_ = other.type_;
+                //         value_ = std::move(other.value_);
+                //     }
+                //     return *this;
+                // }
+                
 
                 private:
 
@@ -54,24 +81,27 @@ namespace Bencode
 
             };
 
-            Parser() = default;
-            ~Parser() = default;
+            Parser()
+            {
+                bencode_tree_ = BencodeAST(static_cast<int64_t>(0));
+            }
 
+            ~Parser() = default;
 
             void parse(std::string_view byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
 
-            // using BencodeNode = std::variant<int64_t, std::string_view, std::vector<BencodeItem>, 
-            //     std::map<std::string_view, BencodeItem>>;
+            // using BencodeAST = std::variant<int64_t, std::string_view, std::vector<BencodeAST>, 
+            //     std::map<std::string_view, BencodeAST>>;
 
-            const BencodeItem get_tree() const;
+            const BencodeAST get_tree() const;
         
         // private:
             
-            const BencodeItem parse_stream(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
-            const BencodeItem parse_int(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
-            const BencodeItem parse_string(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
-            const BencodeItem parse_list(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
-            const BencodeItem parse_dict(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
+            const BencodeAST parse_stream(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
+            const BencodeAST parse_int(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
+            const BencodeAST parse_string(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
+            const BencodeAST parse_list(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
+            const BencodeAST parse_dict(const std::string_view &byte_stream, std::string_view::const_iterator &it_curr, std::string_view::const_iterator &it_end);
 
             inline bool is_strict_integer(const std::string& str) {
                 static const std::regex strict_int_regex(
@@ -82,10 +112,10 @@ namespace Bencode
 
         public:
 
-            BencodeItem bencode_tree_;
+            BencodeAST bencode_tree_;
     };
 
-    // using BencodeNode = std::variant<int64_t, std::string_view, std::vector<Parser::BencodeItem>, 
-    //             std::map<std::string_view, Parser::BencodeItem>>;
+    // using BencodeAST = std::variant<int64_t, std::string_view, std::vector<Parser::BencodeAST>, 
+    //             std::map<std::string_view, Parser::BencodeAST>>;
 
 }
