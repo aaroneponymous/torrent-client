@@ -4,32 +4,6 @@ namespace Bencode
 {
     // Set of Decoding Functions
 
-    nlohmann::json decodeEncoding(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
-    {
-        if (std::isdigit(*it_begin))
-        {
-            return Bencode::decodeString(it_begin, it_end);
-            
-        }
-        else if (*it_begin == 'i')
-        {
-            return Bencode::decodeInteger(it_begin, it_end);
-        }
-        else if (*it_begin == 'l')
-        {
-            return Bencode::decodeListing(it_begin, it_end);
-        }
-        else if (*it_begin == 'd')
-        {
-            return Bencode::decodeDictionary(it_begin, it_end);
-        }
-        else
-        {
-            std::string encoded_string(it_begin, it_end);
-            throw std::runtime_error("Unhandled encoded value: " + encoded_string);
-        }
-    }
-
     nlohmann::json decodeBencode(const std::string &encoded_string, size_t &pos)
     {
 
@@ -55,28 +29,6 @@ namespace Bencode
         }
     }
 
-    
-    nlohmann::json decodeInteger(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
-    {
-        // [ ]: Exception Handling Needs to Be Done
-
-
-        auto it_e = std::find(it_begin, it_end, 'e');
-
-        if (it_e != it_end)
-        {
-            std::string number_str(++it_begin, it_e);
-            int64_t number = std::atoll(number_str.c_str());
-            it_begin = it_e + 1;
-
-            return nlohmann::json(number);
-        }
-        else
-        {
-            std::string encoded_string(it_begin, it_end);
-            throw std::runtime_error("Invalid Encoded Int Value: " + encoded_string); 
-        }
-    }
 
     nlohmann::json decodeInt(const std::string &encoded_string, size_t &pos)
     {
@@ -108,28 +60,53 @@ namespace Bencode
         }
     }
 
-    nlohmann::json decodeString(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
+    /**
+     * @todo: Edge Cases Handling
+     * 01:a
+     * 3:a
+     * 3:
+     * 3:ab
+     * 4:abc
+     * 9999999999:a
+     * 4:sp\am          (backslashes not valid escapes in Bencode)
+     * 3:💾             (multibyte emoji: visually one char, but 4 bytes (not 3:))
+     */
+
+    nlohmann::json decodeString(const std::string_view &encoded_string, size_t &pos)
     {
-        auto it_colon = std::find(it_begin, it_end, ':');
+        size_t colon_index = encoded_string.find(':', pos);
 
-        if (it_colon != it_end)
+        if (colon_index != std::string_view::npos)
         {
-            std::string substr(it_begin, it_colon);
-            int64_t str_length = std::atoll(substr.c_str());
-            it_begin = it_colon + 1;
-            it_colon = it_begin + str_length;
-            
-            std::string value(it_begin, it_colon);
-            it_begin = it_colon;
+            std::string len_str(encoded_string.substr(pos, colon_index - pos));
+            int64_t len_int = std::atoll(len_str.c_str());
 
-            return nlohmann::json(value);
+            if (len_int < 0) {
+                throw std::runtime_error("decodeString: length of string < 0, len_int: " + std::to_string(len_int));
+            }
+
+            size_t size_str = static_cast<size_t>(len_int);
+            size_t pos_end = colon_index + size_str;
+            std::cout << "pos_end: " << pos_end << "\n";
+
+            std::string decoded_res(encoded_string.substr(colon_index + 1, size_str));
+            size_t decoded_len = decoded_res.size();
+
+            if (decoded_len != size_str) {
+                throw std::runtime_error("decodeString: Invalid Input - string size doesn't match the following value");
+            }
+
+            pos = pos_end + 1;
+
+            return nlohmann::json(decoded_res);
         }
         else
         {
-            std::string encoded_string(it_begin, it_end);
-            throw std::runtime_error("Invalid Encoded String Value: " + encoded_string); 
+            std::string invalid_encoding(encoded_string);
+            throw std::runtime_error("Invalid encoded value: " + invalid_encoding);
         }
     }
+
 
     nlohmann::json decodeStr(const std::string &encoded_string, size_t &pos)
     {
@@ -142,6 +119,8 @@ namespace Bencode
          *
          * Example :    "51:Hello"
          * Final Index:  2 - since in substr_next
+         * 
+         * Invalid Cases: Wrong (Checked Recursively Already)
          */
 
         size_t colon_index = encoded_string.find(':', pos);
@@ -164,29 +143,6 @@ namespace Bencode
         }
     }
 
-    nlohmann::json decodeListing(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
-    {
-        nlohmann::json list = nlohmann::json::array();
-        
-        while (++it_begin != it_end && *it_begin != 'e')
-        {
-            list.push_back(decodeEncoding(it_begin, it_end));
-
-            if (it_begin == it_end)
-            {
-                std::string encoded_string(it_begin, it_end);
-                throw std::runtime_error("Invalid encoded value [No Ending Delimiter 'e' found]: " + encoded_string);
-            }
-
-            // [ ]: Find a better more readable way to ensure correctness of iterator position
-
-            it_begin--;
-        }
-
-        ++it_begin;
-        
-        return list;
-    }
 
     nlohmann::json decodeList(const std::string &encoded_string, size_t &pos)
     {
@@ -213,30 +169,7 @@ namespace Bencode
         return list;
     }
 
-    nlohmann::json decodeDictionary(std::string::const_iterator &it_begin, std::string::const_iterator &it_end)
-    {
-        nlohmann::json dict = nlohmann::json::object();
 
-        while (++it_begin != it_end && *it_begin != 'e')
-        {
-            if (!std::isdigit(*it_begin))
-            {
-                std::string encoded_string(it_begin, it_end);
-                throw std::runtime_error("Key cannot be a non-string value" + encoded_string);
-            }
-
-            auto key = decodeEncoding(it_begin, it_end);
-            nlohmann::json val = (key == "pieces") ? piecesToHashStr(it_begin, it_end) : decodeEncoding(it_begin, it_end);
-            dict[key] = val;
-
-            // [ ]: Improve on decrementing it_begin to point back to correct the incremented it_begin
-            it_begin--;
-        }
-
-        ++it_begin;
-
-        return nlohmann::json(dict);
-    }
 
     // [ ]: Unfinished Needs Proper Implementation for All Keys?
 
@@ -565,7 +498,7 @@ namespace Bencode
 
             try
             {
-                torrent_info = decodeEncoding(it_begin, it_end);
+                // torrent_info = decodeEncoding(it_begin, it_end);
               
             }
             catch (...)

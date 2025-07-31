@@ -19,20 +19,6 @@
 
 namespace Bencode
 {
-    // Set of Decoding Functions (Using Iterators) 
-
-    nlohmann::json decodeEncoding(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
-
-    nlohmann::json decodeString(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
-    
-    nlohmann::json decodeInteger(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
-
-    nlohmann::json decodeListing(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
-
-    nlohmann::json decodeDictionary(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
-    
-
-
 
     // Set of Decoding Functions
 
@@ -42,9 +28,15 @@ namespace Bencode
 
     nlohmann::json decodeStr(const std::string &encoded_string, size_t &pos);
 
+    nlohmann::json decodeString(const std::string_view &encoded_string, size_t &pos);
+
     nlohmann::json decodeList(const std::string &encoded_string, size_t &pos);
 
     nlohmann::json decodeDict(const std::string &encoded_string, size_t &pos);
+
+    // Set of Decoding Functions
+
+    nlohmann::json decodeInteger(const std::string_view &encoded_string, size_t &pos);
 
     // Helper Functions Hash - Hexadecimal Conversions
 
