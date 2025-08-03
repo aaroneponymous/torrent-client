@@ -29,6 +29,31 @@ namespace Bencode
         }
     }
 
+    nlohmann::json decodeInteger(const std::string_view &encoded_string, size_t &pos) {
+        
+        size_t e_index = encoded_string.find_first_of('e', pos);
+
+        if (e_index != std::string::npos) {
+
+            // @todo: Edge Cases Check
+
+            std::string no_str(encoded_string.substr(pos + 1, (pos+1) - e_index));
+            int64_t no_val = std::stoll(no_str.c_str());
+
+            if (no_str.length() > 1 && ((no_str[0] == '-' && no_str[1] == '0') || (no_str[0] == '0' && no_val >= 0)))
+            {
+                throw std::runtime_error("Invalid encoded value: " + no_str);
+            }
+
+            pos = e_index + 1;
+            return nlohmann::json(no_val);            
+        }
+        else {
+            std::string(encoded_string.substr(pos, encoded_string.size()));
+            throw std::runtime_error("Invalid Encoding: No delimiter 'e' found");
+        }
+    }
+
 
     nlohmann::json decodeInt(const std::string &encoded_string, size_t &pos)
     {

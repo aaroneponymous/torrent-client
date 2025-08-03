@@ -54,7 +54,16 @@ int main(int argc, char *argv[])
     }
     else if (command == "testInt")
     {
+        if (argc < 3)
+        {
+            std::cerr << "Usage: " << argv[0] << " testStr <encoded_value>" << std::endl;
+            return 1;
+        }
 
+        std::string_view encoded_value(argv[2]);
+        size_t pos = 0;
+        nlohmann::json decoded_value = Bencode::decodeInteger(encoded_value, pos);
+        std::cout << decoded_value.dump() << "\n";
 
     }
     else if (command == "testList")

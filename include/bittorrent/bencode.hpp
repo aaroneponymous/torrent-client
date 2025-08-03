@@ -24,6 +24,8 @@ namespace Bencode
 
     nlohmann::json decodeBencode(const std::string &encoded_string, size_t &pos);
 
+    nlohmann::json decodeInteger(const std::string_view &encoded_string, size_t &pos);
+
     nlohmann::json decodeInt(const std::string &encoded_string, size_t &pos);
 
     nlohmann::json decodeStr(const std::string &encoded_string, size_t &pos);
