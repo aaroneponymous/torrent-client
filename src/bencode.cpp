@@ -61,13 +61,9 @@ namespace Bencode
     }
 
     /**
+     * @todo: ensure non-negative check is made in upper level functions
      * @todo: Edge Cases Handling
      * 01:a
-     * 3:a
-     * 3:
-     * 3:ab
-     * 4:abc
-     * 9999999999:a
      * 4:sp\am          (backslashes not valid escapes in Bencode)
      * 3:💾             (multibyte emoji: visually one char, but 4 bytes (not 3:))
      */
@@ -76,16 +72,24 @@ namespace Bencode
     {
         size_t colon_index = encoded_string.find(':', pos);
 
+        /**
+         * std::string npos
+         * npos is a static member constant value with the greatest possible value for an element of type size_t.
+         * As a return value, it is usually used to indicate no matches.
+         * This constant is defined with a value of -1, which because size_t is an unsigned integral type, it is the largest possible representable value for this type.
+         */
+
         if (colon_index != std::string_view::npos)
         {
             std::string len_str(encoded_string.substr(pos, colon_index - pos));
-            int64_t len_int = std::atoll(len_str.c_str());
-
-            if (len_int < 0) {
-                throw std::runtime_error("decodeString: length of string < 0, len_int: " + std::to_string(len_int));
-            }
+            uint64_t len_int = std::atoll(len_str.c_str());
 
             size_t size_str = static_cast<size_t>(len_int);
+
+            if ((len_int == 0 && len_str.size() > 1) || (len_int > 0 && len_str[0] == '0')) {
+                throw std::runtime_error("decodeString: length of string trailing type: " + len_str);
+            }
+
             size_t pos_end = colon_index + size_str;
             std::cout << "pos_end: " << pos_end << "\n";
 
