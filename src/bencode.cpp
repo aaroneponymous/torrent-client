@@ -56,6 +56,12 @@ namespace Bencode
         return std::all_of(s.begin(), s.end(), [](unsigned char c){ return std::isdigit(c); });
     }
 
+    /**
+     * @todo: Edge Cases Handling:
+     * 1. i0eextra
+     * 2. Overflow
+     */
+
     nlohmann::json decodeInteger(const std::string_view &encoded_string, size_t &pos) {
         
         pos++;       
@@ -133,7 +139,7 @@ namespace Bencode
     }
 
     /**
-     * @todo: ensure non-negative check is made in upper level functions
+     * @todo: Ensure non-negative check is made in upper level functions
      * @todo: Edge Cases Handling
      * 4:sp\am          (backslashes not valid escapes in Bencode)
      * 3:💾             (multibyte emoji: visually one char, but 4 bytes (not 3:))
