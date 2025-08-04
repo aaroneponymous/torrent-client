@@ -29,16 +29,62 @@ namespace Bencode
         }
     }
 
+    nlohmann::json decodeTop(const std::string_view &encoded_string, size_t &pos)
+    {
+        if (encoded_string.size() > 0) {
+
+            if (std::isdigit(encoded_string[pos])) // Case: Char at [pos] is digit (string)
+            {
+                return Bencode::decodeString(encoded_string, pos);
+            }
+            else if (encoded_string[pos] == 'i') // Case: Char at [pos] is 'i' (integer) 
+            {
+                return Bencode::decodeInteger(encoded_string, pos);
+            }
+            else 
+            {
+                throw std::runtime_error("Unhandled encoded value: ");
+            }
+        }
+        else {
+            throw std::runtime_error("Invalid encoded value: Empty String");
+        }
+
+    }
+
+    bool is_all_digits(const std::string &s) {
+        return std::all_of(s.begin(), s.end(), [](unsigned char c){ return std::isdigit(c); });
+    }
+
     nlohmann::json decodeInteger(const std::string_view &encoded_string, size_t &pos) {
         
+        pos++;       
         size_t e_index = encoded_string.find_first_of('e', pos);
 
         if (e_index != std::string::npos) {
 
-            // @todo: Edge Cases Check
+            /**
+             * @todo: Edge Cases
+             * 1. i12a3e - Malformed : Check if Valid Numeric String (done)
+             * 2. Overflow (needs to be implemented)
+             * 
+             * 
+            */
 
-            std::string no_str(encoded_string.substr(pos + 1, (pos+1) - e_index));
-            int64_t no_val = std::stoll(no_str.c_str());
+            std::string no_str(encoded_string.substr(pos, e_index - pos));
+            bool is_valid = true;
+
+            if (no_str[0] == '-') {
+                std::string neg_str(no_str.substr(1, no_str.size() - 2));
+                is_valid = is_all_digits(neg_str);
+
+            } else {
+                is_valid = is_all_digits(no_str);
+            }
+
+            if (!is_valid) throw std::runtime_error("Is not all digit");
+
+            int64_t no_val = std::stoll(no_str);
 
             if (no_str.length() > 1 && ((no_str[0] == '-' && no_str[1] == '0') || (no_str[0] == '0' && no_val >= 0)))
             {
@@ -57,6 +103,7 @@ namespace Bencode
 
     nlohmann::json decodeInt(const std::string &encoded_string, size_t &pos)
     {
+        pos++;
         size_t e_index = encoded_string.find_first_of('e', pos);
 
         if (e_index != std::string::npos)
@@ -65,7 +112,7 @@ namespace Bencode
             // Account for valid integer str conversions
             // Invalid: i-0e or trailing zeroes i002e
 
-            std::string number_str = encoded_string.substr(pos + 1, e_index - 1);
+            std::string number_str = encoded_string.substr(pos, pos - e_index);
             int64_t number = std::atoll(number_str.c_str());
 
             // std::cout << "number_str: " + number_str + "\n";
@@ -88,7 +135,6 @@ namespace Bencode
     /**
      * @todo: ensure non-negative check is made in upper level functions
      * @todo: Edge Cases Handling
-     * 01:a
      * 4:sp\am          (backslashes not valid escapes in Bencode)
      * 3:💾             (multibyte emoji: visually one char, but 4 bytes (not 3:))
      */

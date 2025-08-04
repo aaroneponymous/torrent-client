@@ -1,5 +1,5 @@
-#include <iostream>
 #include "../include/bittorrent/bencode.hpp"
+#include <sstream>
 
 
 
@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 
 
     }
-    else if (command == "testStr")
+    else if (command == "test_str")
     {
         if (argc < 3)
         {
@@ -52,18 +52,34 @@ int main(int argc, char *argv[])
         std::cout << decoded_value.dump() << "\n";
 
     }
-    else if (command == "testInt")
+    else if (command == "test_int")
     {
-        if (argc < 3)
+        std::ifstream file{ argv[2] };
+        if (!file)
         {
-            std::cerr << "Usage: " << argv[0] << " testStr <encoded_value>" << std::endl;
+            std::cerr << "Error: could not open file `" << argv[2] << "`\n";
             return 1;
         }
 
-        std::string_view encoded_value(argv[2]);
-        size_t pos = 0;
-        nlohmann::json decoded_value = Bencode::decodeInteger(encoded_value, pos);
-        std::cout << decoded_value.dump() << "\n";
+        std::string line;
+        while (std::getline(file, line))
+        {
+            // Wrap the line buffer in a string_view:
+            std::string_view encoded_value{ line };
+
+            size_t pos = 0;
+
+            try
+            {
+                nlohmann::json decoded = Bencode::decodeTop(encoded_value, pos);
+                std::cout << decoded.dump() << "\n";
+            }
+            catch (const std::exception &e)
+            {
+                std::cerr << "decodeInteger error on `" << line
+                        << "`: " << e.what() << "\n";
+            }
+        }
 
     }
     else if (command == "testList")

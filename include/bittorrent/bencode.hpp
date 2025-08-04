@@ -14,6 +14,10 @@
 #include <stdexcept>
 #include <fstream>
 #include <assert.h>
+#include <algorithm>
+
+
+
 #include "../json.hpp"
 #include "../sha1.hpp"
 
@@ -24,19 +28,19 @@ namespace Bencode
 
     nlohmann::json decodeBencode(const std::string &encoded_string, size_t &pos);
 
-    nlohmann::json decodeInteger(const std::string_view &encoded_string, size_t &pos);
-
     nlohmann::json decodeInt(const std::string &encoded_string, size_t &pos);
 
     nlohmann::json decodeStr(const std::string &encoded_string, size_t &pos);
-
-    nlohmann::json decodeString(const std::string_view &encoded_string, size_t &pos);
 
     nlohmann::json decodeList(const std::string &encoded_string, size_t &pos);
 
     nlohmann::json decodeDict(const std::string &encoded_string, size_t &pos);
 
     // Set of Decoding Functions
+
+    nlohmann::json decodeTop(const std::string_view &encoded_string, size_t &pos);
+
+    nlohmann::json decodeString(const std::string_view &encoded_string, size_t &pos);
 
     nlohmann::json decodeInteger(const std::string_view &encoded_string, size_t &pos);
 
