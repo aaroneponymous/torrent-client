@@ -3,7 +3,6 @@
 #include <set>
 
 
-
 int main(int argc, char *argv[])
 {
     // Flush after every std::cout / std::cerr
@@ -40,8 +39,45 @@ int main(int argc, char *argv[])
             std::cerr << "Usage: " << argv[0] << " info path/to/file.torrent" << std::endl;
         }
 
-        
+        std::streampos size;
+        char *buffer;
 
+        std::string path(argv[2]);
+
+        std::ifstream file(path, std::ios::in | std::ios::binary | std::ios::ate);
+        nlohmann::json torrent_info;
+
+        if (file.is_open())
+        {
+            size = file.tellg();
+            int buff_size = file.tellg();
+            buffer = new char[size];
+            file.seekg(0, std::ios::beg);
+            file.read(buffer, size);
+
+            std::string_view torrent_info_str(buffer, buff_size);
+            size_t pos = 0;
+
+            try
+            {
+                torrent_info = Bencode::decodeBencode(torrent_info_str, pos);
+                std::cout << torrent_info.dump() << "\n";
+              
+            }
+            catch (...)
+            {
+                std::cout << "Exception in parse_torrent(): " << std::endl;
+            }
+
+            delete[] buffer;
+            file.close();
+
+            return torrent_info;
+        }
+        else
+        {
+            throw std::runtime_error("Unable to open file: " + path);
+        }
 
     }
     else if (command == "test_str")
