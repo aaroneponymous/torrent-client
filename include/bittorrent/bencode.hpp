@@ -26,51 +26,47 @@ namespace Bencode
 
     // Set of Decoding Functions
 
-    nlohmann::json decodeBencode(const std::string &encoded_string, size_t &pos);
-
-    nlohmann::json decodeInt(const std::string &encoded_string, size_t &pos);
-
-    nlohmann::json decodeStr(const std::string &encoded_string, size_t &pos);
-
-    nlohmann::json decodeList(const std::string &encoded_string, size_t &pos);
-
-    nlohmann::json decodeDict(const std::string &encoded_string, size_t &pos);
-
-    // Set of Decoding Functions
-
-    nlohmann::json decodeTop(const std::string_view &encoded_string, size_t &pos);
+    nlohmann::json decodeBencode(const std::string_view &encoded_string, size_t &pos);
 
     nlohmann::json decodeString(const std::string_view &encoded_string, size_t &pos);
 
     nlohmann::json decodeInteger(const std::string_view &encoded_string, size_t &pos);
 
-    // Helper Functions Hash - Hexadecimal Conversions
+    nlohmann::json decodeList(const std::string_view &encoded_string, size_t &pos);
 
-    nlohmann::json piecesToHashStr(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
+    nlohmann::json decodeDict(const std::string_view &encoded_string, size_t &pos);
 
-    nlohmann::json piecestoHashStr(const std::string &encoded_string, size_t &pos);
+    
+    bool isValidStrVal(std::string &str_val, size_t &pos, size_t &end);
 
-    auto bytesToHex(const std::string &bytes_string) -> std::string;
 
-    auto hexToBytes(const std::string &hex_string) -> std::string;
+    // // Helper Functions Hash - Hexadecimal Conversions
 
-    // Set of Bencoding Functions
+    // nlohmann::json piecesToHashStr(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
 
-    auto encodeBencode(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
+    // nlohmann::json piecestoHashStr(const std::string &encoded_string, size_t &pos);
 
-    auto encodeStr(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
+    // auto bytesToHex(const std::string &bytes_string) -> std::string;
 
-    auto encodeInt(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
+    // auto hexToBytes(const std::string &hex_string) -> std::string;
 
-    auto encodeList(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
+    // // Set of Bencoding Functions
 
-    auto encodeDict(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
+    // auto encodeBencode(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
 
-    // Torrent Parsers
+    // auto encodeStr(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
 
-    nlohmann::json parseTorrent(const std::string &path);
+    // auto encodeInt(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
 
-    const std::vector<std::string> getTorrentInfo(const std::string &path);
+    // auto encodeList(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
+
+    // auto encodeDict(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
+
+    // // Torrent Parsers
+
+    // nlohmann::json parseTorrent(const std::string &path);
+
+    // const std::vector<std::string> getTorrentInfo(const std::string &path);
 
 
 }

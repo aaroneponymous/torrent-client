@@ -1,5 +1,6 @@
 #include "../include/bittorrent/bencode.hpp"
 #include <sstream>
+#include <set>
 
 
 
@@ -9,6 +10,9 @@ int main(int argc, char *argv[])
 
     std::cout << std::unitbuf;
     std::cerr << std::unitbuf;
+
+
+    std::set<std::string> commands({"test_str", "test_int", "test_list", "test_dict"});
 
     if (argc < 2)
     {
@@ -36,6 +40,8 @@ int main(int argc, char *argv[])
             std::cerr << "Usage: " << argv[0] << " info path/to/file.torrent" << std::endl;
         }
 
+        
+
 
     }
     else if (command == "test_str")
@@ -52,7 +58,7 @@ int main(int argc, char *argv[])
         std::cout << decoded_value.dump() << "\n";
 
     }
-    else if (command == "test_int")
+    else if (commands.contains(command))
     {
         std::ifstream file{ argv[2] };
         if (!file)
@@ -71,13 +77,23 @@ int main(int argc, char *argv[])
 
             try
             {
-                nlohmann::json decoded = Bencode::decodeTop(encoded_value, pos);
+                nlohmann::json decoded = Bencode::decodeBencode(encoded_value, pos);
                 std::cout << decoded.dump() << "\n";
             }
             catch (const std::exception &e)
             {
-                std::cerr << "decodeInteger error on `" << line
-                        << "`: " << e.what() << "\n";
+                if (command == "test_int") {
+                    std::cerr << "decodeInteger error on `" << line << "`: " << e.what() << "\n";
+                } else if (command == "test_str") {
+                    std::cerr << "decodeString error on `" << line << "`: " << e.what() << "\n";
+                } else if (command == "test_list") {
+                    std::cerr << "decodeList error on `" << line << "`: " << e.what() << "\n";
+                } else if (command == "test_dict") {
+                    std::cerr << "decodeDict error on `" << line << "`: " << e.what() << "\n";
+                } else {
+                    std::cerr << "Wrong Command Input" << "\n";
+                }
+
             }
         }
 
