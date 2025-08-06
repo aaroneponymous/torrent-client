@@ -1,5 +1,6 @@
 #include "../include/bittorrent/bencode.hpp"
 #include <sstream>
+#include <stdio.h>
 #include <set>
 
 
@@ -34,49 +35,38 @@ int main(int argc, char *argv[])
     }
     else if (command == "info")
     {
-        if (argc < 3)
-        {
-            std::cerr << "Usage: " << argv[0] << " info path/to/file.torrent" << std::endl;
+        if (argc < 3) {
+                std::cerr << "Usage: " << argv[0] << " info path/to/file.torrent\n";
+                return 1;
         }
 
-        std::streampos size;
-        char *buffer;
+        std::string path{ argv[2] };
+        std::ifstream file{ path, std::ios::binary };
+        if (!file)
+        {
+            std::cerr << "Error: could not open file `" << path << "`\n";
+            return 1;
+        }
 
-        std::string path(argv[2]);
+        // Read entire file into a string
+        std::ostringstream oss;
+        oss << file.rdbuf();
+        std::string file_contents = oss.str();
 
-        std::ifstream file(path, std::ios::in | std::ios::binary | std::ios::ate);
+        // Wrap in string_view (safe because file_contents outlives view)
+        std::string_view torrent_sv{ file_contents };
+
+        size_t pos = 0;
         nlohmann::json torrent_info;
-
-        if (file.is_open())
+        try
         {
-            size = file.tellg();
-            int buff_size = file.tellg();
-            buffer = new char[size];
-            file.seekg(0, std::ios::beg);
-            file.read(buffer, size);
-
-            std::string_view torrent_info_str(buffer, buff_size);
-            size_t pos = 0;
-
-            try
-            {
-                torrent_info = Bencode::decodeBencode(torrent_info_str, pos);
-                std::cout << torrent_info.dump() << "\n";
-              
-            }
-            catch (...)
-            {
-                std::cout << "Exception in parse_torrent(): " << std::endl;
-            }
-
-            delete[] buffer;
-            file.close();
-
-            return torrent_info;
+            torrent_info = Bencode::decodeBencode(torrent_sv, pos);
+            std::cout << torrent_info.dump(2) << "\n";
         }
-        else
+        catch (const std::exception &e)
         {
-            throw std::runtime_error("Unable to open file: " + path);
+            std::cerr << "Error parsing torrent: " << e.what() << "\n";
+            return 1;
         }
 
     }
@@ -88,7 +78,9 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        std::string_view encoded_value(argv[2]);
+        std::string contents(argv[2]);
+        std::string_view encoded_value{contents};
+
         size_t pos = 0;
         nlohmann::json decoded_value = Bencode::decodeString(encoded_value, pos);
         std::cout << decoded_value.dump() << "\n";
@@ -106,7 +98,6 @@ int main(int argc, char *argv[])
         std::string line;
         while (std::getline(file, line))
         {
-            // Wrap the line buffer in a string_view:
             std::string_view encoded_value{ line };
 
             size_t pos = 0;

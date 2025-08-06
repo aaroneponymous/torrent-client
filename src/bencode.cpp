@@ -173,7 +173,6 @@ namespace Bencode
 
             size_t end_keylen = encoded_string.find_first_of(':', pos);
             std::string key_len(encoded_string.substr(pos, end_keylen));
-            size_t val_pos = 0;
             end_keylen = key_len.find_first_of(':', 0);
 
             if (!std::isdigit(encoded_string[pos])) {
