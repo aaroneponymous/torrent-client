@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
         try
         {
             torrent_info = Bencode::decodeBencode(torrent_sv, pos);
-            std::cout << torrent_info.dump(2) << "\n";
+            std::cout << torrent_info << "\n";
         }
         catch (const std::exception &e)
         {

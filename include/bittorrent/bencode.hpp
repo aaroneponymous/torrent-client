@@ -15,6 +15,9 @@
 #include <fstream>
 #include <assert.h>
 #include <algorithm>
+#include <sstream>
+#include <iomanip>
+#include <algorithm>
 
 
 
@@ -26,18 +29,21 @@ namespace Bencode
 
     // Set of Decoding Functions
 
-    nlohmann::json decodeBencode(const std::string_view &encoded_string, size_t &pos);
+    nlohmann::json decodeBencode(const std::string_view& encoded_string, size_t& pos);
 
-    nlohmann::json decodeString(const std::string_view &encoded_string, size_t &pos);
+    nlohmann::json decodeString(const std::string_view& encoded_string, size_t& pos);
 
-    nlohmann::json decodeInteger(const std::string_view &encoded_string, size_t &pos);
+    nlohmann::json decodeInteger(const std::string_view& encoded_string, size_t& pos);
 
-    nlohmann::json decodeList(const std::string_view &encoded_string, size_t &pos);
+    nlohmann::json decodeList(const std::string_view& encoded_string, size_t& pos);
 
-    nlohmann::json decodeDict(const std::string_view &encoded_string, size_t &pos);
+    nlohmann::json decodeDict(const std::string_view& encoded_string, size_t& pos);
 
+    nlohmann::json decodePieces(const std::string_view& encoded_string, size_t& pos);
+
+    std::string bytesToHexString(const std::vector<unsigned char>& data, size_t length);
     
-    bool isValidStrVal(std::string &str_val, size_t &pos, size_t &end);
+    bool isValidStrVal(std::string& str_val, size_t& pos, size_t& end);
 
 
     // // Helper Functions Hash - Hexadecimal Conversions

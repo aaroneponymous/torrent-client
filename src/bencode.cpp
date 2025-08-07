@@ -126,6 +126,8 @@ namespace Bencode
                 throw std::runtime_error("decodeString: Invalid Input - string size doesn't match the following value");
             }
 
+            std::cout << decoded_res << "\n";
+
             pos = pos_end + 1;
 
             return nlohmann::json(decoded_res);
@@ -181,10 +183,12 @@ namespace Bencode
 
             auto key = decodeString(encoded_string, pos);
 
-            // Accounting for Pieces for Hashed Bytes (but depends on key and thus dependency)
-            nlohmann::json val = decodeBencode(encoded_string, pos);
-            dict[key] = val;
+            // check if pos == digit
 
+            nlohmann::json val = (key == "pieces") ? decodePieces(encoded_string, pos) : decodeBencode(encoded_string, pos);
+            dict[key] = val;
+            
+            // std::cout << "key: " << key.dump() << ", val: " << val.dump() << "\n\n";
         }
 
         /**
@@ -196,6 +200,66 @@ namespace Bencode
         return nlohmann::json(dict);
 
     }
+
+    nlohmann::json decodePieces(const std::string_view& encoded_string, size_t& pos) {
+
+        size_t colon_index = encoded_string.find_first_of(':', pos);
+
+        /**
+         * std::string npos
+         * npos is a static member constant value with the greatest possible value for an element of type size_t.
+         * As a return value, it is usually used to indicate no matches.
+         * This constant is defined with a value of -1, which because size_t is an unsigned integral type, it is the largest possible representable value for this type.
+         */
+
+        if (colon_index != std::string_view::npos)
+        {
+            std::string len_str(encoded_string.substr(pos, colon_index - pos));
+            uint64_t len_int = std::atoll(len_str.c_str());
+
+            size_t size_str = static_cast<size_t>(len_int);
+
+            if ((len_int == 0 && len_str.size() > 1) || (len_int > 0 && len_str[0] == '0')) {
+                throw std::runtime_error("decodePieces: length of string trailing type: " + len_str);
+            }
+
+            size_t pos_end = colon_index + size_str;
+
+            std::string decoded_res(encoded_string.substr(colon_index + 1, size_str));
+            size_t decoded_len = decoded_res.size();
+
+            if (decoded_len != size_str) {
+                throw std::runtime_error("decodePieces: Invalid Input - string size doesn't match the following value");
+            }
+
+            pos = pos_end + 1;
+            
+            std::vector<unsigned char> data;
+            data.reserve(size_str);
+            for (auto byte: decoded_res) { data.push_back(static_cast<unsigned char>(byte)); };
+            std::string result = bytesToHexString(data, size_str);
+            return nlohmann::json(result);
+        }
+        else
+        {
+            std::string invalid_encoding(encoded_string);
+            throw std::runtime_error("Invalid encoded value: " + invalid_encoding);
+        }
+    }
+
+    std::string bytesToHexString(const std::vector<unsigned char>& data, size_t length) {
+        std::ostringstream ss;
+        ss << std::hex << std::uppercase << std::setfill('0');
+        std::for_each(data.begin(), data.end(), [&](int byte) { ss << std::setw(2) << byte; });
+
+        std::string result(ss.str());
+
+        return result;     
+    }
+
+
+
+
 
     bool isValidStrVal(std::string &str_val, size_t &pos, size_t &end) {
         
