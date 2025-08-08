@@ -126,8 +126,6 @@ namespace Bencode
                 throw std::runtime_error("decodeString: Invalid Input - string size doesn't match the following value");
             }
 
-            std::cout << decoded_res << "\n";
-
             pos = pos_end + 1;
 
             return nlohmann::json(decoded_res);
