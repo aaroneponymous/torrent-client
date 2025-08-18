@@ -164,6 +164,10 @@ namespace Bencode
     {
         pos++;
 
+        /**
+         * @todo: nlohmann::json -> object or object_t
+         */
+
         nlohmann::json dict = nlohmann::json::object();
         if (pos == std::string::npos) {
             throw std::runtime_error("Invalid encoded value for Dict [No Ending Delimiter 'e' found]: " + std::string(encoded_string));
@@ -283,7 +287,10 @@ namespace Bencode
 
     }
     
-    
+    void encodeString(const nlohmann::json &json_obj, std::string &encoded_string) {
+
+
+    }
     
     // [ ]: Unfinished Needs Proper Implementation for All Keys?
 
