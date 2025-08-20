@@ -107,36 +107,11 @@ namespace Bencode
 
     void encodeDict(const nlohmann::json &json_object, std::string &encoded_output);
 
+    std::string hexToBytes(const std::string &hex_string);
 
+    std::string getInfoHash(const nlohmann::json &metadata_dict);
 
-
-    // // Helper Functions Hash - Hexadecimal Conversions
-
-    // nlohmann::json piecesToHashStr(std::string::const_iterator &it_begin, std::string::const_iterator &it_end);
-
-    // nlohmann::json piecestoHashStr(const std::string &encoded_string, size_t &pos);
-
-    // auto bytesToHex(const std::string &bytes_string) -> std::string;
-
-    // auto hexToBytes(const std::string &hex_string) -> std::string;
-
-    // // Set of Bencoding Functions
-
-    // auto encodeBencode(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
-
-    // auto encodeStr(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
-
-    // auto encodeInt(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
-
-    // auto encodeList(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
-
-    // auto encodeDict(const nlohmann::json &json_obj, std::string &encoded_output) -> void;
-
-    // // Torrent Parsers
-
-    // nlohmann::json parseTorrent(const std::string &path);
-
-    // const std::vector<std::string> getTorrentInfo(const std::string &path);
+    std::vector<std::string> getPiecesHashed(const nlohmann::json &metadata_dict);
 
 
 }

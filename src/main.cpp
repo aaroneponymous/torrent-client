@@ -69,6 +69,23 @@ int main(int argc, char *argv[])
             return 1;
         }
 
+        // std::string encode_output("");
+
+        // Bencode::encodeBencode(torrent_info, encode_output);
+        // std::cout << "\n\nEncoded Output: " << encode_output << "\n";
+
+        std::string info_hash = Bencode::getInfoHash(torrent_info);
+
+        std::cout << "Info Hash: " << info_hash << "\n";
+
+        std::vector<std::string> hashed_pieces = Bencode::getPiecesHashed(torrent_info);
+
+        std::cout << "Hashed Pieces: " << "\n";
+        for (auto &piece_hash : hashed_pieces) {
+            std::cout << piece_hash << "\n";
+        }
+
+
     }
     else if (command == "test_str")
     {
@@ -125,16 +142,39 @@ int main(int argc, char *argv[])
         }
 
     }
-    else if (command == "testList")
+    else if (command == "encodeString")
     {
+        const nlohmann::json empty("");
+        const nlohmann::json non_empty("hello");
+        std::string output("");
+
+        Bencode::encodeString(empty, output);
+        std::cout << "Empty: " << output << "\n";
+        output.clear();
+        Bencode::encodeString(non_empty, output);
+        std::cout << "Non-Empty: " << output << "\n";
+
 
     }
-    else if (command == "testDict")
+    else if (command == "encodeInteger")
     {
+        const nlohmann::json val(50);
+        std::string output("");
+        Bencode::encodeInteger(val, output);
+        std::cout << output << "\n";
+
+    }
+    else if (command == "encodeList")
+    {
+        const nlohmann::json array_strings({"hello", "world"});
+        std::string output("");
+        Bencode::encodeList(array_strings, output);
+        std::cout << output << "\n";
 
     }
     else
     {
+        
         std::cerr << "unknown command: " << command << std::endl;
         return 1;
     }
