@@ -137,7 +137,6 @@ namespace Bencode
         }
     }
 
-
     nlohmann::json decodeList(const std::string_view &encoded_string, size_t &pos)
     {
         pos++;
@@ -250,7 +249,7 @@ namespace Bencode
 
     std::string bytesToHexString(const std::vector<unsigned char>& data, size_t length) {
         std::ostringstream ss;
-        ss << std::hex << std::uppercase << std::setfill('0');
+        ss << std::hex << std::setfill('0');
         std::for_each(data.begin(), data.end(), [&](int byte) { ss << std::setw(2) << byte; });
 
         std::string result(ss.str());
@@ -776,11 +775,7 @@ namespace Bencode
         for (int i = 0; i < pieces_count; i++) {
             
             std::string piece_hexed = piecesHexString.substr(i*20*2, 20*2);
-            std::string piece_bytes = hexToBytes(piece_hexed);
-
-            SHA1 checksum;
-            checksum.update(piece_bytes);
-            hashed_pieces.push_back(checksum.final());
+            hashed_pieces.push_back(piece_hexed);
         
         }
 

@@ -1,4 +1,5 @@
 #include "../include/bittorrent/bencode.hpp"
+#include "../include/bittorrent/tracker.hpp"
 #include <sstream>
 #include <stdio.h>
 #include <set>
@@ -75,8 +76,11 @@ int main(int argc, char *argv[])
         // std::cout << "\n\nEncoded Output: " << encode_output << "\n";
 
         std::string info_hash = Bencode::getInfoHash(torrent_info);
+        std::string info_bytes = Bencode::hexToBytes(info_hash);
+        std::string info_escaped = Tracker::urlEncode(info_bytes);
 
         std::cout << "Info Hash: " << info_hash << "\n";
+        std::cout << "Info Escaped: " << info_bytes << "\n";
 
         std::vector<std::string> hashed_pieces = Bencode::getPiecesHashed(torrent_info);
 
