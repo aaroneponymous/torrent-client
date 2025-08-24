@@ -2,7 +2,99 @@
 #include "../include/bittorrent/tracker.hpp"
 #include <sstream>
 #include <stdio.h>
+#include <stdlib.h>
 #include <set>
+#include <random>
+
+
+struct MemoryBuffer {
+    std::string data;
+};
+
+
+static size_t writeCallBack(void* contents, size_t size, size_t nmemb, void* userp) {
+    size_t realsize = size * nmemb;
+    auto* mem = static_cast<MemoryBuffer*>(userp);
+    mem->data.append(static_cast<char*>(contents), realsize);
+    return realsize;
+}
+
+// std::string generatePeerID() {
+//     std::random_device rand_dev;
+//     std::uniform_int_distribution<int> dist(0, 9);
+
+//     std::string peer_id;
+//     for (int i = 0; i < 20; ++i) {
+//         int rand = dist(rand_dev);  // rand is 0-9
+//         char rand_ch = static_cast<char>(rand); // char(rand) converts rand to \x00, \x01 .. (ASCII control char)
+//         peer_id.push_back(rand_ch);
+//         std::cout << rand_ch;
+//     }
+
+//     return peer_id;
+// }
+
+
+std::string generatePeerID() {
+    std::random_device rand_dev;
+    std::uniform_int_distribution<int> dist(0, 9);
+
+    std::string peer_id;
+    peer_id.reserve(20);
+
+    for (int i = 0; i < 20; ++i) {
+        int rand = dist(rand_dev);
+        char rand_ch = '0' + static_cast<char>(rand);
+        peer_id.push_back(rand_ch);
+    }
+
+    return peer_id;
+}
+
+std::string getTrackerResponse(std::string& announce_url, std::string& info_hash, std::string& peer_id, int port,
+                               int uploaded, int downloaded, int left, int compact) {
+
+    CURL *curl_handle;
+    CURLcode res;
+    
+    curl_global_init(CURL_GLOBAL_ALL);
+    curl_handle = curl_easy_init();
+
+    std::string url_infoHash = Tracker::urlEncode(info_hash, curl_handle);
+    std::string url_peerID = Tracker::urlEncode(peer_id, curl_handle);
+
+    std::string url("");
+    url.append(announce_url);
+    url.append("?info_hash=" + url_infoHash);
+    url.append("&peer_id=" + url_peerID);
+    url.append("&port=" + std::to_string(port));
+    url.append("&uploaded=" + std::to_string(uploaded));
+    url.append("&downloaded=" + std::to_string(downloaded));
+    url.append("&left=" + std::to_string(left));
+    url.append("&compact=" + std::to_string(compact));
+
+    std::cout << url << std::endl;
+
+    struct MemoryBuffer mem_buff;
+    curl_easy_setopt(curl_handle, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, writeCallBack);
+    curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, static_cast<void*>(&mem_buff));
+    res = curl_easy_perform(curl_handle);
+    
+    if(res != CURLE_OK) {
+        std::cout << "curl_easy_perform() failed: " << curl_easy_strerror(res) <<  std::endl;
+    }
+    else {
+        std::cout << "Bytes Received: " << mem_buff.data.size() << std::endl;
+    }
+
+    curl_easy_cleanup(curl_handle);
+    curl_global_cleanup();
+
+    return mem_buff.data;
+
+}
+
 
 
 int main(int argc, char *argv[])
@@ -33,6 +125,10 @@ int main(int argc, char *argv[])
         }
 
 
+    }
+    else if (command == "peer_id") {
+        std::string peer_id = generatePeerID();
+        std::cout << peer_id << std::endl;
     }
     else if (command == "info")
     {
@@ -70,25 +166,32 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        // std::string encode_output("");
+        std::string encode_output("");
 
-        // Bencode::encodeBencode(torrent_info, encode_output);
-        // std::cout << "\n\nEncoded Output: " << encode_output << "\n";
+        Bencode::encodeBencode(torrent_info, encode_output);
 
+        std::string announce_url = Bencode::getAnnounceURL(torrent_info);
         std::string info_hash = Bencode::getInfoHash(torrent_info);
         std::string info_bytes = Bencode::hexToBytes(info_hash);
-        std::string info_escaped = Tracker::urlEncode(info_bytes);
-
-        std::cout << "Info Hash: " << info_hash << "\n";
-        std::cout << "Info Escaped: " << info_bytes << "\n";
+        std::string peer_id = generatePeerID();
+        int piece_length = Bencode::getPieceLength(torrent_info);
 
         std::vector<std::string> hashed_pieces = Bencode::getPiecesHashed(torrent_info);
 
-        std::cout << "Hashed Pieces: " << "\n";
-        for (auto &piece_hash : hashed_pieces) {
-            std::cout << piece_hash << "\n";
-        }
+        int bytes_left = piece_length * hashed_pieces.size();
 
+        std::string tracker_response = getTrackerResponse(announce_url, info_bytes, peer_id,
+                                                          6881, 0, 0, bytes_left, 1);
+        size_t pos_t = 0;
+
+        std::cout << tracker_response << std::endl;
+
+        nlohmann::json response_info = Bencode::decodeBencode(tracker_response, pos_t);
+        std::cout << response_info.dump() << std::endl;
+
+
+
+        
 
     }
     else if (command == "test_str")

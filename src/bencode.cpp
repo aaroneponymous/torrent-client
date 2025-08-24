@@ -185,7 +185,7 @@ namespace Bencode
 
             // check if pos == digit
 
-            nlohmann::json val = (key == "pieces") ? decodePieces(encoded_string, pos) : decodeBencode(encoded_string, pos);
+            nlohmann::json val = (key == "pieces" || key == "peers") ? decodePieces(encoded_string, pos) : decodeBencode(encoded_string, pos);
             dict[key] = val;
             
             // std::cout << "key: " << key.dump() << ", val: " << val.dump() << "\n\n";
@@ -256,6 +256,23 @@ namespace Bencode
 
         return result;     
     }
+
+    int getPieceLength(const nlohmann::json& json_obj) {
+
+        auto it_info = *json_obj.find("info");
+        auto val = it_info["piece length"];
+        std::string piece_length(val.dump());
+        return std::stoi(piece_length);
+    }
+
+    std::string getAnnounceURL(const nlohmann::json& json_obj) {
+        auto announce_val = json_obj["announce"];
+        std::string announce_url(announce_val.dump());
+        announce_url.pop_back();
+        announce_url.erase(announce_url.begin());
+        return announce_url;
+    }
+
 
 
 

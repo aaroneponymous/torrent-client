@@ -113,5 +113,9 @@ namespace Bencode
 
     std::vector<std::string> getPiecesHashed(const nlohmann::json &metadata_dict);
 
+    int getPieceLength(const nlohmann::json& json_obj);
+
+    std::string getAnnounceURL(const nlohmann::json& json_obj);
+
 
 }
