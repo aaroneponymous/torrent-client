@@ -1,4 +1,5 @@
 #include "bencode.hpp"
+#include <iostream>
 #include <stdexcept>
 #include <limits>
 #include <sstream>
@@ -274,7 +275,7 @@ namespace bencode {
 
 
     BencodeValue BencodeParser::parse(const std::string_view& input) {
-        
+
         BencodeParser p(input);
         BencodeValue v = p.parseValue();
         
