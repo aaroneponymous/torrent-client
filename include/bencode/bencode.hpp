@@ -6,7 +6,11 @@
 #include <map>
 #include <optional>
 
-
+/**
+ * @todo: Consider std::variant for BencodeValue member
+ *        - Better Memory Usage
+ * 
+ */
 
 namespace bencode {
 
