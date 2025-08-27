@@ -1,0 +1,16 @@
+# Top-level info dict
+d4:infod3:bar3:bazee|d3:bar3:baze
+
+# Info can appear after other keys
+d3:foo3:bar4:infod3:abc3:defee|d3:abc3:defe
+
+# Nested "info" (should still capture first occurrence)
+d4:infod1:x1:ye4:metad4:infod3:zzz3:qqqeee|d1:x1:ye
+
+
+# No info key -> expect empty (no capture)
+d3:abc3:defe|
+
+
+# Info value is a list (allowed by bencode, though not torrent spec)
+d4:infol3:one3:two5:threeee|l3:one3:two5:threee

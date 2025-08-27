@@ -10,7 +10,8 @@
 
 namespace bencode {
 
-    class BencodeValue {
+    class BencodeValue 
+    {
     public:
         enum class Type { None, Int, String, List, Dict };
 
@@ -46,11 +47,20 @@ namespace bencode {
         std::map<std::string, BencodeValue> dictValue_;
     };
 
+    struct ParseResult 
+    {
+        BencodeValue root;
+        std::optional<std::string_view> infoSlice;
+    };
 
-    class BencodeParser {
+
+    class BencodeParser 
+    {
     public:
         static BencodeValue parse(const std::string_view& input);
         static std::string encode(const BencodeValue& val);
+        static ParseResult parseWithInfoSlice(const std::string_view& input);
+
 
     private:
 
@@ -69,6 +79,17 @@ namespace bencode {
 
         std::string_view input_;
         size_t pos_{0};
+
+        struct Span { size_t begin{}, end{}; };
+        bool capture_info_span_{false};
+        std::optional<Span> info_span_;
+        void enableInfoSpanCapture(bool on = true) { capture_info_span_ = on; }
+
+        std::optional<std::pair<const char*, size_t>> infoSliceBytes() const {
+            if (!info_span_) return std::nullopt;
+            auto [b, e] = *info_span_;
+            return std::make_pair(input_.data() + b, e - b);
+        }
 
     };
 

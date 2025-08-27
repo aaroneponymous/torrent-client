@@ -127,6 +127,25 @@ namespace bencode {
 
     BencodeParser::BencodeParser(std::string_view input) : input_(input), pos_(0) {}
 
+    ParseResult BencodeParser::parseWithInfoSlice(const std::string_view& input) {
+
+        BencodeParser p(input);
+        p.enableInfoSpanCapture(true);
+        BencodeValue v = p.parseValue();
+
+        if (p.pos_ != input.size()) {
+            throw parse_error("trailing data after valid bencode", p.pos_);
+        }
+
+        ParseResult r{std::move(v), std::nullopt};
+        if (auto s = p.infoSliceBytes()) {
+            auto [ptr, len] = *s;
+            r.infoSlice = std::string_view(ptr, len);
+        }
+        return r;
+    }
+
+
 
     static void ensure_not_eof(std::string_view s, size_t pos) {
         if (pos >= s.size()) throw parse_error("unexpected end of input", pos);
@@ -158,63 +177,60 @@ namespace bencode {
 
 
     BencodeValue BencodeParser::parseInt() {
-        
-        // int: i<digits>e ; no leading zeros (except zero), no -0
         expect('i');
         bool neg = false;
         if (peek() == '-') { get(); neg = true; }
 
-        // at least one digit
+        // At least one digit
         if (!(peek() >= '0' && peek() <= '9')) {
             throw parse_error("integer missing digits", pos_);
         }
 
-        // leading zero rule
-        size_t start_digits = pos_;
-
+        // Leading zero rules (allow "i0e", forbid "-0", forbid leading zeros)
         if (peek() == '0') {
-            get(); // single zero
-            if (peek() != 'e') {
-                // if there are more digits after '0', it's invalid
-                throw parse_error("leading zeros not allowed", pos_);
-            }
-            // number is zero
+            get(); // consume '0'
             expect('e');
-            if (neg) throw parse_error("negative zero not allowed", start_digits - 1);
+            if (neg) throw parse_error("negative zero not allowed", pos_ - 2);
             return BencodeValue(int64_t(0));
         }
 
-        // parse digits
-        int64_t value = 0;
+        // Parse magnitude into uint64_t
+        uint64_t mag = 0;
         while (peek() >= '0' && peek() <= '9') {
             int d = get() - '0';
-            // overflow check (conservative)
-            if (value > (std::numeric_limits<int64_t>::max() - d) / 10) {
+            // Conservative overflow for mag (uint64_t)
+            if (mag > (std::numeric_limits<uint64_t>::max() - uint64_t(d)) / 10ULL) {
                 throw parse_error("integer overflow", pos_);
             }
-            value = value * 10 + d;
+            mag = mag * 10ULL + uint64_t(d);
         }
-
         expect('e');
-        if (neg) value = -value;
-        return BencodeValue(value);
+
+        if (!neg) {
+            if (mag > uint64_t(std::numeric_limits<int64_t>::max()))
+                throw parse_error("integer overflow", pos_);
+            return BencodeValue(static_cast<int64_t>(mag));
+        } else {
+
+            // Allow INT64_MIN = -9223372036854775808
+            constexpr uint64_t ABS_INT64_MIN = uint64_t(1) << 63; // 9223372036854775808
+
+            if (mag == ABS_INT64_MIN) return BencodeValue(std::numeric_limits<int64_t>::min());
+            if (mag > uint64_t(std::numeric_limits<int64_t>::max())) throw parse_error("integer overflow", pos_);
+            return BencodeValue(-static_cast<int64_t>(mag));
+        }
     }
 
 
     BencodeValue BencodeParser::parseString() {
-        // string: <len>:<bytes>
-        // len must be non-negative, no leading zeros unless zero itself is "0"
-        // Here, since len is a positive length, "0" is valid and means empty string.
-        // Read length
         size_t len = 0;
-        // handle "0" specially; disallow "01"
+
         if (peek() == '0') {
-            get(); // '0'
+            get();
             expect(':');
-            return BencodeValue(std::string{}); // empty
+            return BencodeValue(std::string{});
         }
 
-        // first digit 1..9
         if (!(peek() >= '1' && peek() <= '9')) {
             throw parse_error("invalid string length start", pos_);
         }
@@ -230,7 +246,6 @@ namespace bencode {
 
         expect(':');
 
-        // extract bytes
         if (input_.size() - pos_ < len) {
             throw parse_error("string length exceeds input", pos_);
         }
@@ -251,27 +266,47 @@ namespace bencode {
     }
 
     BencodeValue BencodeParser::parseDict() {
-
         expect('d');
-        std::map<std::string,BencodeValue> dict;
+        std::map<std::string, BencodeValue> dict;
 
-        // Keys must be bencoded strings (byte strings)
-        // (BEP‑3 allows any order; we store in std::map which sorts)
+        // Keys must be bencoded strings (byte strings).
+        // (BEP-3 allows any order; we store in std::map which sorts)
+        // to validate canonical order at parse-time, can compare consecutive keys and throw (see comment block below)
+
+        std::optional<std::string> last_key; // only for optional canonical-order validation
 
         while (peek() != 'e') {
             BencodeValue key = parseString();
-            if (!key.isString()) throw parse_error("dict key not string", pos_);
             const std::string& k = key.asString();
+
+            // Optional canonical-order validation (disabled by default):
+            // if (last_key && *last_key > k) {
+            //     throw parse_error("dict keys out of order", pos_);
+            // }
+            // last_key = k;
+
+            // Duplicate keys are generally rejected by clients(?) (more research)
+
             if (dict.find(k) != dict.end()) {
-                // duplicate keys are not disallowed by BEP‑3 explicitly, but most clients reject.
                 throw parse_error("duplicate dict key", pos_);
             }
+
+            // Parse value and capture exact byte span for "info" (when enabled).
+            size_t val_begin = pos_;
             BencodeValue val = parseValue();
+            size_t val_end = pos_;
+
+            if (capture_info_span_ && k == "info" && !info_span_) {
+                info_span_ = Span{val_begin, val_end};
+            }
+
             dict.emplace(k, std::move(val));
         }
+
         expect('e');
         return BencodeValue(std::move(dict));
     }
+
 
 
     BencodeValue BencodeParser::parse(const std::string_view& input) {
@@ -297,13 +332,11 @@ namespace bencode {
 
     static void encode_int(int64_t x, std::string& out) {
         out.push_back('i');
-        // fastest int->string (std::to_string is fine here)
         out += std::to_string(x);
         out.push_back('e');
     }
 
     static void encode_string(const std::string& s, std::string& out) {
-        // length:bytes
         out += std::to_string(s.size());
         out.push_back(':');
         out.append(s.data(), s.size());
@@ -319,13 +352,14 @@ namespace bencode {
         out.push_back('d');
         // std::map keeps keys sorted lexicographically — canonical
         for (const auto& kv : dict) {
-            encode_string(kv.first, out);   // key as bencoded string
-            encode_impl(kv.second, out);    // value
+            encode_string(kv.first, out);
+            encode_impl(kv.second, out);
         }
         out.push_back('e');
     }
 
     static void encode_impl(const BencodeValue& v, std::string& out) {
+
         switch (v.type()) {
             case BencodeValue::Type::None:
                 throw std::runtime_error("cannot encode None");

@@ -1,237 +1,314 @@
 #include "metainfo.hpp"
-#include "../sha/sha1.hpp"
-
-#include <cstring>
-#include <sstream>
 #include <stdexcept>
+#include <sstream>
+#include <charconv>
 #include <algorithm>
-
-// Decode base32 string (RFC 4648) into raw bytes
-static std::vector<uint8_t> base32Decode(const std::string& input) {
-    static const int8_t table[256] = {
-        /* 0-31 */ -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-        /* ' ' - '/' */ -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-        /* '0'-'9' */    -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-        /* ':'-'@' */    -1,-1,-1,-1,-1,-1,-1,
-        /* 'A'-'Z' */     0, 1, 2, 3, 4, 5, 6, 7,
-                          8, 9,10,11,12,13,14,15,
-                         16,17,18,19,20,21,22,23,
-                         24,25,
-        /* '[' - '`' */ -1,-1,-1,-1,-1,-1,
-        /* 'a'-'z' */    26,27,28,29,30,31, /* rest -1 */
-        -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
-        -1,-1,-1,-1,-1,-1,
-        /* rest all -1 */ 
-    };
-
-    std::vector<uint8_t> output;
-    int buffer = 0, bitsLeft = 0;
-    for (char c : input) {
-        int8_t val = (c >= 0 && c < 127) ? table[static_cast<int>(c)] : -1;
-        if (val == -1) continue; // skip invalid chars (padding etc.)
-
-        buffer <<= 5;
-        buffer |= val & 31;
-        bitsLeft += 5;
-        if (bitsLeft >= 8) {
-            output.push_back((buffer >> (bitsLeft - 8)) & 0xFF);
-            bitsLeft -= 8;
-        }
-    }
-    return output;
-}
+#include <cctype>
+#include <cstring>
+#include <openssl/sha.h>
 
 
-// 40-char SHA1 hex string into 20 raw bytes
-static std::array<uint8_t,20> hexToRaw(const std::string& hex) {
-    if (hex.size() != 40) {
-        throw std::runtime_error("SHA1 hex string must be exactly 40 chars");
-    }
-    std::array<uint8_t,20> out{};
-    for (size_t i = 0; i < 20; i++) {
-        unsigned int byte;
-        std::stringstream ss(hex.substr(i*2, 2));
-        ss >> std::hex >> byte;
-        out[i] = static_cast<uint8_t>(byte);
-    }
+
+static std::array<uint8_t,20> sha1_bytes(const void* data, size_t len) {
+    std::array<uint8_t,20> out;
+    SHA1(static_cast<const unsigned char*>(data), len, out.data());
     return out;
 }
 
+static const bencode::BencodeValue& expect_dict(const bencode::BencodeValue& v, const char* where) {
+    if (!v.isDict()) throw std::runtime_error(std::string(where) + ": expected dict");
+    return v;
+}
+static const bencode::BencodeValue& expect_list(const bencode::BencodeValue& v, const char* where) {
+    if (!v.isList()) throw std::runtime_error(std::string(where) + ": expected list");
+    return v;
+}
+static const bencode::BencodeValue& expect_str(const bencode::BencodeValue& v, const char* where) {
+    if (!v.isString()) throw std::runtime_error(std::string(where) + ": expected string");
+    return v;
+}
+static const bencode::BencodeValue* find_key(const bencode::BencodeValue& dict, const char* key) {
+    const auto& m = dict.asDict();
+    auto it = m.find(key);
+    return it == m.end() ? nullptr : &it->second;
+}
 
-// binary blob into 20-byte hashes
-static std::vector<std::array<uint8_t,20>> splitPieces(const std::string& blob) {
-    if (blob.size() % 20 != 0) {
-        throw std::runtime_error("pieces field length not multiple of 20");
-    }
+static std::array<uint8_t,20> compute_infohash_from_slice(std::string_view raw) {
+    return sha1_bytes(raw.data(), raw.size());
+}
+
+static std::vector<std::array<uint8_t,20>> split_pieces_blob(const std::string& blob) {
+    if (blob.size() % 20 != 0) throw std::runtime_error("pieces blob not multiple of 20");
+
     std::vector<std::array<uint8_t,20>> out;
-    for (size_t i=0; i<blob.size(); i+=20) {
-        std::array<uint8_t,20> sha{};
-        std::memcpy(sha.data(), blob.data()+i, 20);
-        out.push_back(sha);
+    out.reserve(blob.size() / 20);
+
+    for (size_t i = 0; i < blob.size(); i += 20) {
+        std::array<uint8_t,20> a{};
+        std::memcpy(a.data(), blob.data() + i, 20);
+        out.push_back(a);
     }
     return out;
 }
 
+static std::vector<FileEntry> single_file_entries(const bencode::BencodeValue& infoDict) {
 
-static std::string urlDecode(const std::string& s) {
-    std::string result;
-    result.reserve(s.size());
-    for (size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == '+') {
-            result.push_back(' ');
-        } else if (s[i] == '%' && i + 2 < s.size()) {
-            unsigned int byte;
-            std::stringstream ss;
-            ss << std::hex << s.substr(i+1, 2);
-            ss >> byte;
-            result.push_back(static_cast<char>(byte));
-            i += 2;
-        } else {
-            result.push_back(s[i]);
-        }
-    }
-    return result;
+    const auto* lenv = find_key(infoDict, "length");
+
+    if (!lenv) throw std::runtime_error("info.length missing");
+    if (!lenv->isInt()) throw std::runtime_error("info.length not int");
+    
+    uint64_t len = static_cast<uint64_t>(lenv->asInt());
+    FileEntry fe;
+
+    // path = name for single-file
+    const auto* namev = find_key(infoDict, "name");
+    if (!namev || !namev->isString()) throw std::runtime_error("info.name missing or not string");
+   
+    fe.path = std::filesystem::path(namev->asString());
+    fe.length = len;
+    fe.offset = 0;
+    return {fe};
 }
 
+static std::vector<FileEntry> multi_file_entries(const bencode::BencodeValue& filesv) {
+
+    const auto& lst = expect_list(filesv, "info.files").asList();
+    std::vector<FileEntry> out;
+    out.reserve(lst.size());
+    uint64_t running = 0;
+
+    for (const auto& fv : lst) {
+        const auto& fd = expect_dict(fv, "file entry");
+        
+        const auto* lenv = find_key(fd, "length");
+        if (!lenv || !lenv->isInt()) throw std::runtime_error("file.length missing or not int");
+        uint64_t len = static_cast<uint64_t>(lenv->asInt());
+        
+        // path (list of strings)
+        const auto* pathv = find_key(fd, "path");
+        if (!pathv || !pathv->isList()) throw std::runtime_error("file.path missing or not list");
+        std::filesystem::path p;
+        for (const auto& segv : pathv->asList()) {
+            const auto& s = expect_str(segv, "file.path segment").asString();
+            p /= s;
+        }
+        
+        FileEntry fe;
+        fe.path = p;
+        fe.length = len;
+        fe.offset = running;
+        running += len;
+        out.push_back(std::move(fe));
+    }
+
+    return out;
+}
+
+// Flatten announce + announce-list
+static std::vector<std::string> collect_trackers(const bencode::BencodeValue& root) {
+    std::vector<std::string> trackers;
+
+    if (auto* a = find_key(root, "announce")) {
+        if (a->isString()) trackers.push_back(a->asString());
+    }
+    // announce-list (list of lists of strings) (BEP 12)
+    if (auto* al = find_key(root, "announce-list")) {
+        if (al->isList()) {
+            for (const auto& tier : al->asList()) {
+                if (!tier.isList()) continue;
+                for (const auto& s : tier.asList()) {
+                    if (s.isString()) trackers.push_back(s.asString());
+                }
+            }
+        }
+    }
+
+    // Dedup (preserve first occurrence)
+    std::vector<std::string> dedup;
+    dedup.reserve(trackers.size());
+    for (auto& t : trackers) {
+        if (std::find(dedup.begin(), dedup.end(), t) == dedup.end())
+            dedup.push_back(std::move(t));
+    }
+    return dedup;
+}
+
+static std::string_view grab_info_slice(std::string_view data) {
+
+    auto pr = bencode::BencodeParser::parseWithInfoSlice(data);
+    if (!pr.infoSlice) throw std::runtime_error("missing 'info' dictionary");
+    
+    // Ensure root is a dict
+    (void)expect_dict(pr.root, "root");
+    return *pr.infoSlice; // raw bytes of "info" value
+}
+
+// Parse the already-decoded "info" dictionary into InfoDictionary
+static InfoDictionary decode_info_dict(const bencode::BencodeValue& root, std::string_view infoSlice) {
+
+    const auto& rdict = expect_dict(root, "root");
+    const auto* info = find_key(rdict, "info");
+   
+    if (!info) throw std::runtime_error("root.info missing");
+    const auto& infod = expect_dict(*info, "info");
+
+    InfoDictionary out;
+    out.rawSlice = infoSlice;
+
+    if (auto* namev = find_key(infod, "name")) {
+        out.name = expect_str(*namev, "info.name").asString();
+
+    } else {
+        throw std::runtime_error("info.name missing");
+    }
+
+    if (auto* plv = find_key(infod, "piece length")) {
+        if (!plv->isInt()) throw std::runtime_error("info.piece length not int");
+        auto val = plv->asInt();
+
+        if (val <= 0) throw std::runtime_error("info.piece length <= 0");
+        out.pieceLength = static_cast<uint32_t>(val);
+
+    } else {
+        throw std::runtime_error("info.piece length missing");
+    }
+
+    // pieces (20-byte concatenation)
+    if (auto* pv = find_key(infod, "pieces")) {
+        const auto& blob = expect_str(*pv, "info.pieces").asString();
+        out.pieces = split_pieces_blob(blob);
+
+    } else {
+        throw std::runtime_error("info.pieces missing");
+    }
+
+    // files vs length
+    if (auto* filesv = find_key(infod, "files")) {
+        out.files = multi_file_entries(*filesv);
+
+    } else {
+        out.files = single_file_entries(infod);
+    }
+
+    return out;
+}
+
+// -------------------------- Public API ---------------------------
 
 Metainfo Metainfo::fromTorrent(std::string_view data) {
-    using namespace bencode;
 
-    BencodeValue root = BencodeParser::parse(data);
-    if (!root.isDict()) throw std::runtime_error("torrent root is not dict");
+    auto pr = bencode::BencodeParser::parseWithInfoSlice(data);
+    const auto& root = expect_dict(pr.root, "root");
 
-    const auto& dict = root.asDict();
-    Metainfo meta;
+    Metainfo mi;
 
-    // --- announce ---
-    if (auto it = dict.find("announce"); it != dict.end() && it->second.isString()) {
-        meta.announceList.push_back(it->second.asString());
-    }
+    if (!pr.infoSlice) throw std::runtime_error("missing 'info' dictionary");
+    mi.info = decode_info_dict(root, *pr.infoSlice);
 
-    if (auto it = dict.find("announce-list"); it != dict.end() && it->second.isList()) {
-        for (auto& tier : it->second.asList()) {
-            if (tier.isList()) {
-                for (auto& url : tier.asList()) {
-                    if (url.isString()) meta.announceList.push_back(url.asString());
-                }
-            }
-        }
-    }
-    
-    auto itInfo = dict.find("info");
-    if (itInfo == dict.end() || !itInfo->second.isDict())
-        throw std::runtime_error("missing info dict");
+    mi.announceList = collect_trackers(root);
 
-    const auto& infoDict = itInfo->second.asDict();
-    InfoDictionary info;
+    // Compute infohash from exact raw bytes of "info"
+    mi.infoHash_ = compute_infohash_from_slice(mi.info.rawSlice);
 
-    if (auto it = infoDict.find("name"); it != infoDict.end() && it->second.isString()) {
-        info.name = it->second.asString();
-    }
-
-    if (auto it = infoDict.find("piece length"); it != infoDict.end() && it->second.isInt()) {
-        info.pieceLength = static_cast<uint32_t>(it->second.asInt());
-    }
-
-    if (auto it = infoDict.find("pieces"); it != infoDict.end() && it->second.isString()) {
-        info.pieces = splitPieces(it->second.asString());
-    }
-    
-    if (auto it = infoDict.find("files"); it != infoDict.end() && it->second.isList()) {
-        uint64_t offset = 0;
-        for (auto& f : it->second.asList()) {
-            const auto& fd = f.asDict();
-            uint64_t len = fd.at("length").asInt();
-            std::filesystem::path path;
-            for (auto& seg : fd.at("path").asList()) {
-                path /= seg.asString();
-            }
-            info.files.push_back({path, len, offset});
-            offset += len;
-        }
-    } else if (auto it = infoDict.find("length"); it != infoDict.end() && it->second.isInt()) {
-        uint64_t len = it->second.asInt();
-        info.files.push_back({info.name, len, 0});
-    }
-
-    meta.info = std::move(info);
-
-    /**
-     * Info-Hash Computation (SHA-1)
-     * @note: BencodeParser doesn't return slice
-     *        Re-encoding the "info" dict and hasing that
-     * @todo: replace with raw slice hashing
-     */
-
-
-    std::string encodedInfo = bencode::BencodeParser::encode(itInfo->second);
-
-    SHA1 sha;
-    sha.update(encodedInfo);
-
-    /**
-     * Info-Hash SHA-1: Return Type
-     * @note: sha.final() -> returns hex string 20-bytes digest as 40-bytes hex string
-     * @note: Conversion to 40-bytes hex string and then to raw_bytes to store in infoHash_
-     * @todo: Implement a .rawFianl() method in sha1.hpp
-     */
-
-    std::string hexDigest = sha.final();
-    meta.infoHash_ = hexToRaw(hexDigest);
-
-    return meta;
+    return mi;
 }
 
+// Minimal magnet support: xt=urn:btih:<20-byte SHA1 (hex or base32)>, dn, tr
+// This fills only infoHash_ (if present), announceList, and info.name (from dn).
+// pieces/pieceLength/files remain empty until metadata fetch (outside scope here).
 Metainfo Metainfo::fromMagnet(const std::string& uri) {
-    Metainfo meta;
+    Metainfo mi;
 
-    // Parse magnet:?xt=urn:btih:<hash>&dn=<name>&tr=<tracker>
-    auto qpos = uri.find('?');
-    if (qpos == std::string::npos) throw std::runtime_error("invalid magnet URI");
+    auto pos = uri.find("magnet:?");
+    if (pos != 0) throw std::runtime_error("invalid magnet URI");
+    auto q = uri.substr(8); // skip "magnet:?"
 
-    std::string query = uri.substr(qpos+1);
-    std::istringstream iss(query);
-    std::string token;
+    auto decode_pct = [](std::string_view s) {
+        
+        std::string out;
+        out.reserve(s.size());
 
-    while (std::getline(iss, token, '&')) {
-        auto eq = token.find('=');
-        if (eq == std::string::npos) continue;
-
-        std::string key = token.substr(0, eq);
-        std::string val = token.substr(eq+1);
-        if (key == "xt" && val.rfind("urn:btih:", 0) == 0) {
-            std::string hash = val.substr(9); // after "urn:btih:"
-            std::array<uint8_t,20> h{};
-
-            if (hash.size() == 40) {
-                // --- hex form (40 chars = 20 bytes) ---
-                for (size_t i = 0; i < 20; i++) {
-                    unsigned int byte;
-                    std::stringstream ss(hash.substr(i*2, 2));
-                    ss >> std::hex >> byte;
-                    h[i] = static_cast<uint8_t>(byte);
-                }
-        } else if (hash.size() == 32) {
-            // --- base32 form (32 chars = 20 bytes) ---
-            auto raw = base32Decode(hash);     // use helper
-            if (raw.size() != 20) {
-                throw std::runtime_error("invalid base32 info-hash size");
+        for (size_t i = 0; i < s.size(); ++i) {
+            
+            if (s[i] == '%' && i + 2 < s.size()) {
+                auto hex = s.substr(i+1, 2);
+                int v = 0;
+                auto hex_to_int = [](char c)->int{
+                    if (c >= '0' && c <= '9') return c - '0';
+                    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+                    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+                    return -1;
+                };
+                int hi = hex_to_int(hex[0]), lo = hex_to_int(hex[1]);
+                if (hi >= 0 && lo >= 0) { out.push_back(char((hi<<4)|lo)); i += 2; continue; }
             }
-            std::copy(raw.begin(), raw.end(), h.begin());
-        } else {
-            throw std::runtime_error("invalid btih length (expected 40 hex or 32 base32)");
+
+            out.push_back(s[i]);
         }
 
-        meta.infoHash_ = h;
-    }
+        return out;
+    };
 
-        else if (key == "dn") {
-            meta.info.name = urlDecode(val);
+    auto add_tracker = [&](std::string v) {
+        if (std::find(mi.announceList.begin(), mi.announceList.end(), v) == mi.announceList.end())
+            mi.announceList.push_back(std::move(v));
+    };
+
+    // parse query pairs
+    size_t i = 8; // after "magnet:?"
+    while (i < uri.size()) {
+
+        size_t amp = uri.find('&', i);
+        std::string_view kv = (amp == std::string::npos) ? std::string_view(uri).substr(i)
+                                                         : std::string_view(uri).substr(i, amp - i);
+        size_t eq = kv.find('=');
+        std::string key = std::string(kv.substr(0, eq == std::string::npos ? kv.size() : eq));
+        std::string val = (eq == std::string::npos) ? std::string() : decode_pct(kv.substr(eq + 1));
+
+        if (key == "dn") {
+            mi.info.name = std::move(val);
+
         } else if (key == "tr") {
-            meta.announceList.push_back(urlDecode(val));
+            add_tracker(std::move(val));
+
+        } else if (key == "xt") {
+
+            // Expect xt=urn:btih:<hash>
+            constexpr std::string_view prefix = "urn:btih:";
+            if (val.rfind(prefix, 0) == 0) {
+                auto h = std::string_view(val).substr(prefix.size());
+
+                // Hex (40 chars)
+                if (h.size() == 40) {
+                    std::array<uint8_t,20> v{};
+                    auto hex_to_byte = [](char c)->int{
+                        if (c >= '0' && c <= '9') return c - '0';
+                        if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+                        if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+                        return -1;
+                    };
+
+                    for (size_t j = 0; j < 20; ++j) {
+                        int hi = hex_to_byte(h[2*j]);
+                        int lo = hex_to_byte(h[2*j + 1]);
+                        if (hi < 0 || lo < 0) throw std::runtime_error("invalid btih hex");
+                        v[j] = static_cast<uint8_t>((hi<<4)|lo);
+                    }
+                    
+                    mi.infoHash_ = v;
+                } else {
+                    // Base32 case (common) – implement or defer
+                    // For now you can either implement base32 here or throw:
+                    // throw std::runtime_error("btih base32 not yet supported");
+                    // (Optionally: TODO base32 decode)
+                }
+            }
         }
+
+        if (amp == std::string::npos) break;
+        i = amp + 1;
     }
 
-    return meta;
+    return mi;
 }
