@@ -1,8 +1,3 @@
-// metainfo_test.cpp
-// Simple CLI tester for Metainfo parsing (torrent file or magnet URI).
-// Build example (adjust include paths as needed):
-//   g++ -std=c++17 -O2 -I.. metainfo_test.cpp -o metainfo_test
-//
 // Usage:
 //   ./metainfo_test <path/to/file.torrent>
 //   ./metainfo_test <magnet-uri>
@@ -77,8 +72,10 @@ int main(int argc, char** argv) {
 
             if (!meta.announceList.empty()) {
                 std::cout << "Trackers:\n";
-                for (const auto& url : meta.announceList) {
-                    std::cout << "  " << url << "\n";
+                for (const auto& url_vec : meta.announceList) {
+                    for (const auto& url : url_vec) {
+                        std::cout << "  " << url << "\n";
+                    }
                 }
             }
 
@@ -102,8 +99,10 @@ int main(int argc, char** argv) {
 
             if (!meta.announceList.empty()) {
                 std::cout << "Trackers:\n";
-                for (const auto& url : meta.announceList) {
-                    std::cout << "  " << url << "\n";
+                for (const auto& url_vec : meta.announceList) {
+                    for (const auto& url : url_vec) {
+                        std::cout << "  " << url << "\n";
+                    }
                 }
             }
 

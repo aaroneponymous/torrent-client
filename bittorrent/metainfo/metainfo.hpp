@@ -6,7 +6,7 @@
 #include <array>
 #include <filesystem>
 #include <optional>
-#include "../../bencode/bencode.hpp"
+#include "../bencode/bencode.hpp"
 
 struct FileEntry 
 {
@@ -43,7 +43,7 @@ public:
     std::array<uint8_t,20> infoHash() const noexcept { return infoHash_; }
 
     InfoDictionary info;
-    std::vector<std::string> announceList;             // flattened: announce + announce-list
+    std::vector<std::vector<std::string>> announceList;
 
 private:
     std::array<uint8_t,20> infoHash_{};

@@ -105,33 +105,31 @@ static std::vector<FileEntry> multi_file_entries(const bencode::BencodeValue& fi
     return out;
 }
 
-// Flatten announce + announce-list
-static std::vector<std::string> collect_trackers(const bencode::BencodeValue& root) {
-    std::vector<std::string> trackers;
+static std::vector<std::vector<std::string>> collect_tracker_tiers(const bencode::BencodeValue& root) {
+    std::vector<std::vector<std::string>> tiers;
 
-    if (auto* a = find_key(root, "announce")) {
-        if (a->isString()) trackers.push_back(a->asString());
-    }
-    // announce-list (list of lists of strings) (BEP 12)
-    if (auto* al = find_key(root, "announce-list")) {
-        if (al->isList()) {
-            for (const auto& tier : al->asList()) {
-                if (!tier.isList()) continue;
-                for (const auto& s : tier.asList()) {
-                    if (s.isString()) trackers.push_back(s.asString());
-                }
+    const auto* al = find_key(root, "announce-list");
+    if (al && al->isList()) {
+        // BEP 12: announce-list is a list of lists of strings
+        for (const auto& tierVal : al->asList()) {
+            if (!tierVal.isList()) continue;
+            std::vector<std::string> tier;
+            for (const auto& s : tierVal.asList()) {
+                if (s.isString()) tier.push_back(s.asString());
             }
+            if (!tier.empty()) tiers.push_back(std::move(tier));
         }
     }
 
-    // Dedup (preserve first occurrence)
-    std::vector<std::string> dedup;
-    dedup.reserve(trackers.size());
-    for (auto& t : trackers) {
-        if (std::find(dedup.begin(), dedup.end(), t) == dedup.end())
-            dedup.push_back(std::move(t));
+    // If announce-list is absent or empty, fall back to single-tier "announce"
+    if (tiers.empty()) {
+        const auto* a = find_key(root, "announce");
+        if (a && a->isString()) {
+            tiers.push_back({ a->asString() });
+        }
     }
-    return dedup;
+
+    return tiers;
 }
 
 static std::string_view grab_info_slice(std::string_view data) {
@@ -206,7 +204,7 @@ Metainfo Metainfo::fromTorrent(std::string_view data) {
     if (!pr.infoSlice) throw std::runtime_error("missing 'info' dictionary");
     mi.info = decode_info_dict(root, *pr.infoSlice);
 
-    mi.announceList = collect_trackers(root);
+    mi.announceList = collect_tracker_tiers(root);
 
     // Compute infohash from exact raw bytes of "info"
     mi.infoHash_ = compute_infohash_from_slice(mi.info.rawSlice);
@@ -217,6 +215,7 @@ Metainfo Metainfo::fromTorrent(std::string_view data) {
 // Minimal magnet support: xt=urn:btih:<20-byte SHA1 (hex or base32)>, dn, tr
 // This fills only infoHash_ (if present), announceList, and info.name (from dn).
 // pieces/pieceLength/files remain empty until metadata fetch (outside scope here).
+
 Metainfo Metainfo::fromMagnet(const std::string& uri) {
     Metainfo mi;
 
@@ -251,9 +250,15 @@ Metainfo Metainfo::fromMagnet(const std::string& uri) {
     };
 
     auto add_tracker = [&](std::string v) {
-        if (std::find(mi.announceList.begin(), mi.announceList.end(), v) == mi.announceList.end())
-            mi.announceList.push_back(std::move(v));
+        // Check across all tiers
+        for (auto& tier : mi.announceList) {
+            if (std::find(tier.begin(), tier.end(), v) != tier.end())
+                return; // already present
+        }
+        // Add as its own new tier
+        mi.announceList.push_back({std::move(v)});
     };
+
 
     // parse query pairs
     size_t i = 8; // after "magnet:?"
