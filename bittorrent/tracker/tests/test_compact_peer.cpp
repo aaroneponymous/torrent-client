@@ -10,7 +10,7 @@
 
 using namespace bittorrent::tracker;
 
-// --- helpers --------------------------------------------------------------
+// --- Helpers --------------------------------------------------------------
 
 static std::string build_ipv4_blob(
     const std::vector<std::pair<std::array<uint8_t,4>, uint16_t>>& peers) {
@@ -54,7 +54,7 @@ static std::array<uint8_t,16> v6(const char* text) {
     return out;
 }
 
-// --- tests: IPv4 ----------------------------------------------------------
+// ------------------------------- Tests: IPv4 --------------------------------
 
 TEST_CASE("IPv4: empty input yields empty vector") {
     auto peers = CompactPeerCodec::parseIPv4(std::string_view{});
@@ -111,7 +111,7 @@ TEST_CASE("IPv4: boundary ports and addresses") {
     CHECK(peers[3].port == 51413);
 }
 
-// --- tests: IPv6 ----------------------------------------------------------
+// ------------------------------- Tests: IPv6 --------------------------------
 
 TEST_CASE("IPv6: empty input yields empty vector") {
     auto peers = CompactPeerCodec::parseIPv6(std::string_view{});
@@ -168,7 +168,8 @@ TEST_CASE("IPv6: boundary ports 0 and 65535") {
     CHECK(peers[1].port == 65535);
 }
 
-// --- tests: robustness ----------------------------------------------------
+
+// ------------------------------- Tests: Robustness --------------------------------
 
 TEST_CASE("Robustness: random non-printable bytes do not crash and parse correctly by length") {
     // Length multiple of 6 → parsed as IPv4 items, regardless of content.

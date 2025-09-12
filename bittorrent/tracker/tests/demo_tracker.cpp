@@ -5,6 +5,7 @@
 #include "../include/http_client.hpp"
 
 using namespace bittorrent::tracker;
+using namespace bittorrent::metainfo;
 
 int main(int argc, char** argv) {
     if (argc < 2) {

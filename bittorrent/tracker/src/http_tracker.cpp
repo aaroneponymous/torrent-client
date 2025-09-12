@@ -8,8 +8,8 @@
 
 namespace bittorrent::tracker {
 
-HttpTracker::HttpTracker(std::shared_ptr<IHttpClient> http, HttpTrackerConfig cfg)
-    : http_(std::move(http)), cfg_(cfg) {}
+    HttpTracker::HttpTracker(std::shared_ptr<IHttpClient> http, HttpTrackerConfig cfg)
+        : http_(std::move(http)), cfg_(cfg) {}
 
 
     std::string HttpTracker::percentEncode(std::string_view raw) 

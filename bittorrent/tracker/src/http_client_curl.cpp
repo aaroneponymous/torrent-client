@@ -15,7 +15,7 @@ namespace bittorrent::tracker {
             return realSize;
         }
 
-    } // anonymous namespace
+    }
 
 
     class HttpClientCurl : public IHttpClient 

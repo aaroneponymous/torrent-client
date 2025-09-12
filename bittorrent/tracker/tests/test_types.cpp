@@ -1,12 +1,5 @@
-// tests/test_types.cpp
 #define CATCH_CONFIG_MAIN
 #include <catch2/catch_all.hpp>
-
-// Adjust include path to where your header lives:
-// If your tree is include/bittorrent/tracker/include/types.hpp, you might need:
-//   #include "bittorrent/tracker/include/types.hpp"
-// or relative to this file:
-//   #include "../include/types.hpp"
 #include "../include/types.hpp"
 
 using namespace bittorrent::tracker;

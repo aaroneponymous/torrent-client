@@ -142,7 +142,10 @@ TEST_CASE("TrackerManager: announce delivers peers that can be drained") {
 
     // Drain peers from the manager
     auto peers = mgr.drainNewPeers();
-    // If your implementation only uses callbacks, peers may be empty here.
+    /**
+     * @todo Peers maybe empty (callbacks?)
+     */
+
     // If it buffers, assert the content:
     if (!peers.empty()) {
         REQUIRE(peers.size() == 2);
@@ -259,7 +262,7 @@ TEST_CASE("TrackerManager: onStats updates are accepted") {
     bt::TrackerManager mgr(announceList, make_infohash(), make_peerid(), /*port*/51413, http);
     mgr.start();
 
-    // Just ensure onStats doesn't crash and subsequent announce triggers a call
+    // Ensure onStats doesn't crash and subsequent announce triggers a call
     mgr.onStats(/*uploaded*/123, /*downloaded*/456, /*left*/789);
     mgr.announce(bt::AnnounceEvent::none, 5);
     REQUIRE(wait_for_calls(*http, 1, std::chrono::seconds(2)));

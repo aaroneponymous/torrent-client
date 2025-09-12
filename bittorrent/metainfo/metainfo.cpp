@@ -8,6 +8,9 @@
 #include <openssl/sha.h>
 
 
+using namespace bittorrent::metainfo;
+
+
 
 static std::array<uint8_t,20> sha1_bytes(const void* data, size_t len) {
     std::array<uint8_t,20> out;

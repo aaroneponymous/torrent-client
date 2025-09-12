@@ -4,6 +4,10 @@ project(tracker_tests LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+add_link_options(-fsanitize=address,undefined)
+
+
 find_package(Catch2 3 REQUIRED)  # Catch2::Catch2WithMain
 find_package(CURL REQUIRED)
 
@@ -73,10 +77,12 @@ add_executable(test_tracker_manager
     ../src/compact_peer.cpp
     ../src/endpoint.cpp
     ../src/http_tracker.cpp
-    ../src/http_client_curl.cpp     # <-- include cURL client here
+    ../src/udp_tracker.cpp      # <-- add
+    ../src/udp_url.cpp          # <-- add
+    ../src/http_client_curl.cpp
     ../src/manager.cpp
     ${BENCODE_SOURCES}
-    test_tracker_manager.cpp        # <-- or test_manager.cpp, match your filename
+    test_tracker_manager.cpp
 )
 target_include_directories(test_tracker_manager PRIVATE
     ${TRACKER_INCLUDE}
@@ -87,6 +93,7 @@ target_link_libraries(test_tracker_manager PRIVATE
     CURL::libcurl
 )
 
+
 # Metainfo (relative to this tests/ dir)
 set(METAINFO_DIR ${CMAKE_CURRENT_LIST_DIR}/../../metainfo)
 file(GLOB METAINFO_SOURCES
@@ -94,27 +101,62 @@ file(GLOB METAINFO_SOURCES
 )
 
 
+# ---------------------------------------
+# demo_tracker (demo runner)
+# ---------------------------------------
 add_executable(demo_tracker
     ../src/types.cpp
     ../src/compact_peer.cpp
     ../src/endpoint.cpp
     ../src/http_tracker.cpp
+    ../src/udp_tracker.cpp      # <-- add
+    ../src/udp_url.cpp          # <-- add
     ../src/http_client_curl.cpp
     ../src/manager.cpp
     ${BENCODE_SOURCES}
-    ${METAINFO_SOURCES}      # <-- add metainfo.cpp
+    ${METAINFO_SOURCES}         # <-- metainfo.cpp, etc.
     demo_tracker.cpp
 )
 target_include_directories(demo_tracker PRIVATE
     ${TRACKER_INCLUDE}
     ${BENCODE_DIR}
-    ${METAINFO_DIR}          # <-- add metainfo include
-)
-target_link_libraries(demo_tracker PRIVATE
-    CURL::libcurl
+    ${METAINFO_DIR}
 )
 find_package(OpenSSL REQUIRED)
-target_link_libraries(demo_tracker PRIVATE OpenSSL::Crypto)
+# (Optional but harmless) If not already present at the top:
+# find_package(Threads REQUIRED)
+
+target_link_libraries(demo_tracker PRIVATE
+    CURL::libcurl
+    OpenSSL::Crypto
+)
+
+# ---------------------------------------
+# test_udp_tracker (POSIX UDP sockets)
+# ---------------------------------------
+find_package(Threads REQUIRED)  # only once in the file; keep if already present
+
+add_executable(test_udp_tracker
+    ../src/types.cpp
+    ../src/udp_tracker.cpp
+    ../src/udp_url.cpp
+    test_udp_tracker.cpp
+)
+target_include_directories(test_udp_tracker PRIVATE
+    ${TRACKER_INCLUDE}
+)
+
+# Link either WithMain (no #define CATCH_CONFIG_MAIN in the .cpp)...
+target_link_libraries(test_udp_tracker PRIVATE
+    Catch2::Catch2WithMain
+    Threads::Threads
+)
+
+# ...or, if your test file defines CATCH_CONFIG_MAIN, use this instead:
+target_link_libraries(test_udp_tracker PRIVATE
+    Catch2::Catch2
+    Threads::Threads
+)
 
 
 
@@ -122,9 +164,10 @@ target_link_libraries(demo_tracker PRIVATE OpenSSL::Crypto)
 # -----------------------------
 # CTest wiring
 # -----------------------------
-enable_testing()
-add_test(NAME test_types            COMMAND test_types)
-add_test(NAME test_compact_peer     COMMAND test_compact_peer)
-add_test(NAME test_endpoint         COMMAND test_endpoint)
-add_test(NAME test_http_tracker     COMMAND test_http_tracker)
-add_test(NAME test_tracker_manager  COMMAND test_tracker_manager)
+# enable_testing()
+# add_test(NAME test_types            COMMAND test_types)
+# add_test(NAME test_compact_peer     COMMAND test_compact_peer)
+# add_test(NAME test_endpoint         COMMAND test_endpoint)
+# add_test(NAME test_http_tracker     COMMAND test_http_tracker)
+# add_test(NAME test_tracker_manager  COMMAND test_tracker_manager)
+# add_test(NAME test_udp_tracker COMMAND test_udp_tracker)

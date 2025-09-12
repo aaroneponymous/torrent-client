@@ -94,4 +94,4 @@ namespace bencode {
     };
 
 
-}
+}  // namespace bencode

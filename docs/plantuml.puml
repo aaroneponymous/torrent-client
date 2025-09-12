@@ -1,0 +1,341 @@
+@startuml
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+
+' =========================
+' BENCODE
+' =========================
+package "bittorrent::bencode" as bencode {
+
+  class BencodeValue {
+    +enum Type { None, Int, String, List, Dict }
+    --
+    -Type type_{Type::None}
+    -int64_t intValue_{0}
+    -std::string strValue_
+    -std::vector<BencodeValue> listValue_
+    -std::map<std::string,BencodeValue> dictValue_
+    --
+    +BencodeValue()
+    +BencodeValue(int64_t i)
+    +BencodeValue(const std::string& s)
+    +BencodeValue(std::string&& s)
+    +BencodeValue(const std::vector<BencodeValue>& l)
+    +BencodeValue(std::vector<BencodeValue>&& l)
+    +BencodeValue(const std::map<std::string,BencodeValue>& d)
+    +BencodeValue(std::map<std::string,BencodeValue>&& d)
+    --
+    +bool isInt() const
+    +bool isString() const
+    +bool isList() const
+    +bool isDict() const
+    +int64_t asInt() const
+    +const std::string& asString() const
+    +const std::vector<BencodeValue>& asList() const
+    +const std::map<std::string,BencodeValue>& asDict() const
+    +std::string toString() const
+    +Type type() const
+  }
+
+  class ParseResult {
+    +BencodeValue root
+    +std::optional<std::string_view> infoSlice
+  }
+
+  class BencodeParser {
+    -std::string_view input_
+    -size_t pos_{0}
+    --
+    +static BencodeValue parse(const std::string_view& input)
+    +static ParseResult parseWithInfoSlice(const std::string_view& input)
+    +static std::string encode(const BencodeValue& val)
+    --
+    -BencodeParser(std::string_view input)
+    -BencodeValue parseValue()
+    -BencodeValue parseInt()
+    -BencodeValue parseString()
+    -BencodeValue parseList()
+    -BencodeValue parseDict()
+    -char peek() const
+    -char get()
+    -void expect(char c)
+    --
+    -struct Span { size_t begin; size_t end; }
+    -bool capture_info_span_{false}
+    -std::optional<Span> info_span_
+    -void enableInfoSpanCapture(bool on = true)
+    -std::optional<std::pair<const char*, size_t>> infoSliceBytes() const
+  }
+
+  note bottom of BencodeParser
+    parseDict() records the exact byte span of the value for key "info"
+    when capture_info_span_ is enabled, enabling spec-correct info-hash
+    computation without re-encoding.
+  end note
+}
+
+' =========================
+' METAINFO
+' =========================
+package "bittorrent::metainfo" as meta {
+
+  class FileEntry {
+    +std::filesystem::path path
+    +uint64_t length
+    +uint64_t offset
+  }
+
+  class InfoDictionary {
+    +std::string name
+    +std::vector<FileEntry> files
+    +uint32_t pieceLength
+    +std::vector<std::array<uint8_t,20>> pieces
+    +std::string_view rawSlice   "exact bytes of 'info'"
+  }
+
+  class Metainfo {
+    +static Metainfo fromTorrent(std::string_view data)
+    +static Metainfo fromMagnet(const std::string& uri)
+    --
+    +InfoDictionary info
+    +std::vector<std::vector<std::string>> announceTiers
+    +std::vector<std::string> announceList
+    --
+    -std::array<uint8_t,20> infoHash_
+    --
+    +const std::vector<std::array<uint8_t,20>>& pieces() const
+    +uint32_t pieceLength() const
+    +bool isSingleFile() const
+    +uint64_t totalLength() const
+    +std::array<uint8_t,20> infoHash() const
+  }
+}
+
+' =========================
+' LOGGER (kept isolated; no cross deps)
+' =========================
+package "bittorrent::logger" as log {
+
+  enum LogLevel { 
+    trace; debug; info; warn; error; none 
+    }
+  class LogRecord { 
+    +LogLevel level +std::chrono::system_clock::time_point ts +std::string logger +std::string msg 
+    }
+  interface ILoggerSink { 
+    {abstract} +void write(const LogRecord& rec) 
+    }
+  class StdoutSink { 
+    +void write(const LogRecord& rec) 
+    }
+  class FileSink { 
+    -std::mutex mu_ -std::ofstream out_ +FileSink(const std::string& path) +void write(const LogRecord& rec) 
+    }
+  class Logger {
+    +using RedactorFn = std::function<std::string(std::string_view)>
+    -std::mutex mu_ -std::shared_ptr<ILoggerSink> sink_ -std::atomic<LogLevel> level_ -RedactorFn redactor_
+    +Logger(std::shared_ptr<ILoggerSink> sink = std::make_shared<StdoutSink>())
+    +void setLevel(LogLevel lvl) +LogLevel level() const
+    +void setRedactor(RedactorFn r)
+    +void log(LogRecord rec)
+  }
+  StdoutSink ..|> ILoggerSink
+  FileSink  ..|> ILoggerSink
+}
+
+' =========================
+' TRACKER
+' =========================
+package "bittorrent::tracker" as trk {
+
+  enum AnnounceEvent { 
+    none; started; completed; stopped 
+    }
+  enum Scheme { 
+    http; https; udp 
+    }
+
+  class InfoHash { 
+    +std::array<uint8_t,20> bytes +std::string toHex() const +auto operator<=>(const InfoHash&) const 
+    }
+  class PeerID   { 
+    +std::array<uint8_t,20> bytes 
+    }
+  class PeerAddr { 
+    +std::string ip +uint16_t port +std::optional<std::array<uint8_t,20>> peerId 
+    }
+
+  class AnnounceRequest {
+    +InfoHash infoHash +PeerID peerId +uint16_t port
+    +uint64_t uploaded +uint64_t downloaded +uint64_t left
+    +AnnounceEvent event +uint32_t numwant +uint32_t key
+    +bool compact +bool no_peer_id
+    +std::optional<std::string> ipv6 +std::optional<std::string> trackerId
+  }
+
+  class AnnounceResponse {
+    +uint32_t interval +std::optional<uint32_t> minInterval
+    +uint32_t complete +uint32_t incomplete
+    +std::vector<PeerAddr> peers
+    +std::optional<std::string> warning +std::optional<std::string> trackerId
+  }
+
+  class ScrapeStats { 
+    +uint32_t complete +uint32_t downloaded +uint32_t incomplete +std::optional<std::string> name 
+    }
+
+  class TrackerEndpoint {
+    +std::string url +Scheme scheme
+    +std::chrono::steady_clock::time_point lastAnnounce
+    +std::chrono::steady_clock::time_point nextAllowed
+    +uint32_t failureCount +bool disabled +std::optional<std::string> trackerId
+    --
+    +void recordSuccess(uint32_t interval, std::optional<uint32_t> min)
+    +void recordFailure()
+    +bool canAnnounceNow(std::chrono::steady_clock::time_point now) const
+  }
+
+  class TrackerTier {
+    +std::vector<TrackerEndpoint> endpoints
+    +size_t currentIndex
+    --
+    +TrackerEndpoint& current()
+    +void rotate()
+    +bool anyAvailable(std::chrono::steady_clock::time_point now) const
+  }
+
+  ' ---- Expected<T> as used in headers ----
+  class "Error" as ErrorT { 
+    +std::string message 
+    }
+  class "Expected<T>" as ExpectedT <<generic>> {
+    +std::optional<T> value
+    +std::optional<ErrorT> error
+    +bool has_value() const
+    +T& get() +const T& get() const
+    +static ExpectedT success(T)
+    +static ExpectedT failure(std::string)
+  }
+
+  class HttpResponse { 
+    +int status +std::string body 
+    }
+
+  interface IHttpClient {
+    +ExpectedT<HttpResponse> get(const std::string& url, int connectTimeoutSec, int transferTimeoutSec, bool followRedirects)
+  }
+
+  interface ITrackerClient {
+    +ExpectedT<AnnounceResponse> announce(const AnnounceRequest& req, const std::string& announceUrl)
+    +ExpectedT<std::map<InfoHash, ScrapeStats>> scrape(const std::vector<InfoHash>& hashes, const std::string& scrapeUrl)
+  }
+
+  class HttpTrackerConfig { 
+    +int connectTimeoutSec = 8 +int transferTimeoutSec = 10 +bool followRedirects = true 
+    }
+
+  class HttpTracker {
+    +HttpTracker(std::shared_ptr<IHttpClient> http, HttpTrackerConfig cfg = {})
+    +~HttpTracker()
+    --
+    +ExpectedT<AnnounceResponse> announce(const AnnounceRequest& req, const std::string& announceUrl)
+    +ExpectedT<std::map<InfoHash, ScrapeStats>> scrape(const std::vector<InfoHash>& hashes, const std::string& scrapeUrl)
+    --
+    -std::shared_ptr<IHttpClient> http_
+    -HttpTrackerConfig cfg_{}
+    -std::string buildAnnounceUrl(const std::string& base, const AnnounceRequest& req) const
+    -static std::string percentEncode(std::string_view raw)
+    -static std::string percentEncodeBinary(const unsigned char* data, std::size_t len)
+    -ExpectedT<AnnounceResponse> parseAnnounceBody(const std::string& body) const
+    -ExpectedT<std::map<InfoHash,ScrapeStats>> parseScrapeBody(const std::string& body) const
+  }
+
+  class UdpTracker {
+    +UdpTracker()
+    +ExpectedT<AnnounceResponse> announce(const AnnounceRequest& req, const std::string& announceUrl)
+    +ExpectedT<std::map<InfoHash, ScrapeStats>> scrape(const std::vector<InfoHash>& hashes, const std::string& scrapeUrl)
+    --
+    -int sock_
+    -uint64_t connId_
+    -uint32_t txId_
+    -ExpectedT<std::pair<uint64_t,std::chrono::steady_clock::time_point>> ensureConnection(const std::string& udpUrl)
+    -ExpectedT<std::vector<uint8_t>> recvPacket(int expectedMin) const
+  }
+
+  class "makeCurlClient()" as MakeCurlClient <<factory>>
+
+  class TrackerManager {
+    +TrackerManager(const std::vector<std::vector<std::string>>& announceTiers,
+                    InfoHash ih, PeerID pid, uint16_t port,
+                    std::shared_ptr<IHttpClient> httpClient = nullptr)
+    +void start()
+    +void stop()
+    +void onStats(uint64_t uploaded, uint64_t downloaded, uint64_t left)
+    +void announce(AnnounceEvent ev = AnnounceEvent::none, uint32_t numwant = 50)
+    +std::vector<PeerAddr> drainNewPeers()
+    +void setPeersCallback(std::function<void(const std::vector<PeerAddr>&)> cb)
+    --
+    -InfoHash infoHash_ -PeerID peerId_ -uint16_t port_
+    -uint64_t uploaded_{0} -uint64_t downloaded_{0} -uint64_t left_{0}
+    -std::mutex statsMu_
+    -std::vector<TrackerTier> tiers_
+    -std::unique_ptr<ITrackerClient> http_
+    -std::unique_ptr<ITrackerClient> udp_
+    -std::vector<PeerAddr> pendingPeers_
+    -std::mutex peersMu_
+    -std::function<void(const std::vector<PeerAddr>&)> peersCb_
+    -std::thread worker_
+    -std::atomic<bool> running_{false}
+    --
+    -void workerLoop()
+    -void tryOneTier(TrackerTier& tier, AnnounceEvent ev, uint32_t numwant)
+    -ITrackerClient& clientFor(const TrackerEndpoint& ep)
+    -AnnounceRequest makeReq(AnnounceEvent ev, uint32_t numwant) const
+    -void deliverPeers(const std::vector<PeerAddr>& peers)
+  }
+
+  note bottom of HttpTracker
+    HTTP/HTTPS announce (BEP 3/7):
+      Build query with url-encoded info_hash & peer_id, event, key, numwant...
+      Parse bencoded response; support compact/non-compact peers.
+  end note
+
+  note bottom of UdpTracker
+    UDP (BEP 15):
+      Connect (txId -> connId), retry with backoff.
+      Announce with stats & event; parse compact IPv4 peers.
+      Scrape supports multiple info_hash values.
+  end note
+
+  note bottom of TrackerManager
+    Role:
+      Owns endpoints grouped by BEP-12 tiers.
+      Respects per-endpoint (minInterval|interval) and cooldown with backoff.
+      Rotates within a tier before moving to the next.
+      Delivers peers via callback or drain queue.
+      Selects client by scheme via ITrackerClient.
+  end note
+}
+
+' =========================
+' RELATIONSHIPS
+' =========================
+meta.Metainfo *-- meta.InfoDictionary
+meta.InfoDictionary *-- meta.FileEntry
+
+meta.Metainfo ..> bencode.BencodeParser : «uses parseWithInfoSlice()»
+meta.InfoDictionary ..> bencode.BencodeValue : «decode fields»
+
+trk.HttpTracker ..> bencode.BencodeParser : «parse/encode responses»
+trk.HttpTracker ..> bencode.BencodeValue  : «inspect bencoded dicts»
+
+trk.TrackerTier *-- trk.TrackerEndpoint
+trk.TrackerManager o-- trk.TrackerTier
+trk.TrackerManager *-- trk.ITrackerClient : «http_»
+trk.TrackerManager *-- trk.ITrackerClient : «udp_»
+trk.IHttpClient <.. trk.HttpTracker : «uses via shared_ptr»
+trk.HttpTrackerConfig <-- trk.HttpTracker : «cfg_»
+trk.MakeCurlClient ..> trk.IHttpClient : «returns shared_ptr»
+
+' Logger intentionally has no incoming arrows
+@enduml

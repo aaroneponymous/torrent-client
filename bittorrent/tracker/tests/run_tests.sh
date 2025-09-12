@@ -28,8 +28,11 @@ echo "=== Running test_endpoint ==="
 echo "=== Running test_http_tracker ==="
 ./test_http_tracker
 
-echo "=== Running demo_tracker ==="
-./demo_tracker ../sample.torrent
+# echo "=== Running demo_tracker ==="
+# ./demo_tracker ../sample.torrent
+
+echo "=== Running test_udp_tracker ==="
+./test_udp_tracker
 
 # (Optional) also run ctest to integrate with CTest if desired
 # ctest --output-on-failure
